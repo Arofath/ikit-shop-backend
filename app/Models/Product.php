@@ -15,6 +15,8 @@ class Product extends Model
 
     protected $fillable = [
         'name',
+        'sku',
+        'slug',
         'category_id',
         'brand_id',
         'description',
@@ -31,6 +33,8 @@ class Product extends Model
             'is_active' => 'boolean',
         ];
     }
+
+    protected $with = ['thumbnail'];
 
     public function category()
     {
@@ -65,5 +69,26 @@ class Product extends Model
     public function groupedSpecs()
     {
         return $this->specs->groupBy('spec_group');
+    }
+
+    public function currentStock()
+    {
+        return $this->stockMovements()->sum('quantity');
+    }
+
+    // Scope
+    public function scopeSearch($query, $keyword)
+    {
+        if (!$keyword) return $query;
+
+        return $query->where(function ($q) use ($keyword) {
+            $q->where('name', 'ilike', "%{$keyword}%")
+                ->orWhere('sku', 'ilike', "%{$keyword}%");
+        });
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
     }
 }

@@ -18,6 +18,8 @@ return new class extends Migration
             $table->string('logo')->nullable(); // Path to brand logo
             $table->boolean('is_active')->default(true); // Active status
             $table->timestamps();
+
+            $table->index('is_active');
         });
     }
 

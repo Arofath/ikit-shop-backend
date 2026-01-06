@@ -38,4 +38,22 @@ class Otp extends Model
         return $this->belongsTo(User::class);
     }
 
+    // Scope
+    public function scopeValid($query)
+    {
+        return $query
+            ->where('is_used', false)
+            ->where('expires_at', '>', now());
+    }
+
+    public function scopePurpose($query, string $purpose)
+    {
+        return $query->where('purpose', $purpose);
+    }
+
+    /* Helpers */
+    public function markAsUsed()
+    {
+        $this->update(['is_used' => true]);
+    }
 }

@@ -35,3 +35,27 @@ return new class extends Migration
         Schema::dropIfExists('product_stock_movements');
     }
 };
+
+
+
+// Schema::create('product_stock_movements', function (Blueprint $table) {
+//     $table->uuid('id')->primary();
+//     $table->uuid('product_id');
+//     $table->uuid('supplier_id')->nullable();
+
+//     $table->enum('type', ['IN', 'OUT', 'ADJUST']);
+//     $table->integer('quantity');
+//     $table->decimal('cost_price', 12, 2)->nullable();
+
+//     $table->string('reference_type')->nullable();
+//     $table->uuid('reference_id')->nullable();
+
+//     $table->string('note')->nullable();
+//     $table->timestamps();
+
+//     $table->foreign('product_id')->references('id')->on('products')->cascadeOnDelete();
+//     $table->foreign('supplier_id')->references('id')->on('suppliers')->nullOnDelete();
+
+//     $table->index('product_id');
+//     $table->index('type');
+// });

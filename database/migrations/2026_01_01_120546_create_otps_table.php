@@ -23,8 +23,16 @@ return new class extends Migration
             $table->integer('attempts')->default(0);
             $table->timestamps();
 
+            // Indexes (Important for performance)
+            $table->index(['contact_type', 'contact_value']);
+            $table->index(['user_id', 'purpose']);
+            $table->index('expires_at');
+
             // Foreign key constraint
-            $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete();
+            $table->foreign('user_id')
+                ->references('id')
+                ->on('users')
+                ->nullOnDelete(); // safer than cascade for OTP
         });
     }
 

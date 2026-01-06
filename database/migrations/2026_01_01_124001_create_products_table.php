@@ -14,6 +14,8 @@ return new class extends Migration
         Schema::create('products', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('name'); // Product name
+            $table->string('slug')->unique(); // URL-friendly identifier
+            $table->string('sku')->unique(); // Stock Keeping Unit. e.g., SKU-123
             $table->uuid('category_id'); // Foreign key to categories table
             $table->uuid('brand_id'); // Foreign key to brands table
             $table->text('description')->nullable(); // Product description
@@ -25,6 +27,10 @@ return new class extends Migration
             // Foreign key constraints
             $table->foreign('category_id')->references('id')->on('categories')->cascadeOnDelete();
             $table->foreign('brand_id')->references('id')->on('brands')->cascadeOnDelete();
+
+            // Indexes
+            $table->index(['category_id', 'is_active']);
+            $table->index(['brand_id', 'is_active']);
         });
     }
 
