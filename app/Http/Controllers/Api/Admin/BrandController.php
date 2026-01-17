@@ -108,7 +108,7 @@ class BrandController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(string $id, SupabaseStorageService $storage)
     {
         $brand = Brand::findOrFail($id);
 
@@ -118,6 +118,7 @@ class BrandController extends Controller
             ], 400);
         }
 
+        $storage->deleteImage($brand->logo, env('SUPABASE_BRAND_BUCKET'));
         $brand->delete();
 
         return response()->json([

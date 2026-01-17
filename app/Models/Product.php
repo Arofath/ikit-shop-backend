@@ -23,6 +23,7 @@ class Product extends Model
         'price',
         'discount_percent',
         'is_active',
+        'warranty_id',
     ];
 
     protected function casts(): array
@@ -51,6 +52,11 @@ class Product extends Model
         return $this->hasMany(ProductStockMovement::class);
     }
 
+    public function productSeries()
+    {
+        return $this->belongsTo(ProductSeries::class, 'product_series_id');
+    }
+
     public function images()
     {
         return $this->hasMany(ProductImage::class);
@@ -74,6 +80,11 @@ class Product extends Model
     public function currentStock()
     {
         return $this->stockMovements()->sum('quantity');
+    }
+
+    public function warranty()
+    {
+        return $this->belongsTo(Warranty::class);
     }
 
     // Scope

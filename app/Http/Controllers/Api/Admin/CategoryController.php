@@ -105,7 +105,7 @@ class CategoryController extends Controller
     }
 
     // Delete category
-    public function destroy(string $id)
+    public function destroy(string $id, SupabaseStorageService $storage)
     {
         $category = Category::findOrFail($id);
 
@@ -115,6 +115,7 @@ class CategoryController extends Controller
             ], 400);
         }
 
+        $storage->deleteImage($category->image, env('SUPABASE_CATEGORY_BUCKET'));
         $category->delete();
 
         return response()->json([

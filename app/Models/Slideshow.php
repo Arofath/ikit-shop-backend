@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
-class ProductImage extends Model
+class Slideshow extends Model
 {
     use HasFactory, HasUuids;
 
@@ -14,24 +14,22 @@ class ProductImage extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'product_id',
-        'image_path',
-        'is_thumbnail',
-        'sort_order',
+        'product_series_id',
+        'image',
+        'position',
+        'is_active',
     ];
 
     protected function casts(): array
     {
         return [
-            'is_thumbnail' => 'boolean',
-            'sort_order' => 'integer',
+            'is_active' => 'boolean',
+            'position' => 'integer',
         ];
     }
 
-    public function product()
+    public function series()
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(ProductSeries::class, 'product_series_id');
     }
 }
-
-

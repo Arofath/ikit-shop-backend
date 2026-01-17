@@ -80,6 +80,7 @@ class ProductController extends Controller
             'price' => 'required|numeric|min:0',
             'discount_percent' => 'nullable|numeric|min:0|max:100',
             'description' => 'nullable|string',
+            'product_series_id' => 'nullable|exists:product_series,id',
         ]);
 
         // Generate slug
@@ -88,15 +89,18 @@ class ProductController extends Controller
             $slug .= '-' . Str::random(4);
         }
 
+        $sku = $request->sku ?? 'SKU-' . strtoupper(Str::random(8));
+
         $product = Product::create([
             'name' => $request->name,
             'slug' => $slug,
-            'sku' => $request->sku,
+            'sku' => $sku,
             'category_id' => $request->category_id,
             'brand_id' => $request->brand_id,
             'price' => $request->price,
             'discount_percent' => $request->discount_percent,
             'description' => $request->description,
+            'product_series_id' => $request->product_series_id ?? null,
             'is_active' => true,
         ]);
 
@@ -111,7 +115,12 @@ class ProductController extends Controller
      */
     public function show(string $id)
     {
-        //
+        $product = Product::findOrFail($id);
+
+        return response()->json([
+            'success' => true,
+            'data' => $product
+        ]);
     }
 
     /**
@@ -129,6 +138,7 @@ class ProductController extends Controller
             'price' => 'sometimes|required|numeric|min:0',
             'discount_percent' => 'nullable|numeric|min:0|max:100',
             'is_active' => 'boolean',
+            'warranty_id' => 'nullable|exists:warranties,id',
         ]);
 
         if ($request->name && $request->name !== $product->name) {
@@ -144,11 +154,12 @@ class ProductController extends Controller
             'discount_percent',
             'description',
             'is_active',
+            'warranty_id',
         ]));
 
         return response()->json([
             'message' => 'Product updated successfully',
-            'data' => $product
+            'data' => $product->load('warranty'),
         ]);
     }
 
