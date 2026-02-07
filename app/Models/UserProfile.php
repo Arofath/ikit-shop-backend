@@ -5,15 +5,21 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class CustomerProfile extends Model
+class UserProfile extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
         'profile_image',
         'gender',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'user_id' => 'string',
+        ];
+    }
 
     public function user()
     {

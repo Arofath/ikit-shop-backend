@@ -123,4 +123,10 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /* |--------------------------------------------------------------------------
+    | Super Admin Email
+    |--------------------------------------------------------------------------
+    */
+    'super_admin_email' => env('SUPER_ADMIN_EMAIL', 'admin@example.com'),
+
 ];

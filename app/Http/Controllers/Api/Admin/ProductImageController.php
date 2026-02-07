@@ -3,100 +3,101 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Models\ProductImage;
 use App\Models\Product;
+use App\Models\ProductImage;
+use App\Http\Resources\ProductImageResource;
 use App\Services\SupabaseStorageService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ProductImageController extends Controller
 {
-    public function index($productId)
+    // ១. ទាញយករូបភាពទាំងអស់របស់ Product មួយ
+    public function index(Product $product)
     {
-        $images = ProductImage::where('product_id', $productId)
-            ->orderBy('sort_order')
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => $images
-        ]);
+        $images = $product->images()->orderBy('is_thumbnail', 'desc')->orderBy('sort_order', 'asc')->get();
+        return $this->sendResponse(ProductImageResource::collection($images), 'Product images retrieved.');
     }
 
+    // ២. Upload រូបភាពច្រើនសន្លឹក
     public function store(Request $request, Product $product, SupabaseStorageService $storage)
     {
         $request->validate([
-            'image' => 'required',
-            'image.*' => 'image|max:2048',
-            'is_thumbnail' => 'nullable|boolean',
+            'images'   => 'required|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
 
-        $files = $request->file('image');
-        if (!is_array($files)) {
-            $files = [$files];
-        }
+        return DB::transaction(function () use ($request, $product, $storage) {
+            $uploadedImages = [];
 
-        $createdImages = [];
-        $lastOrder = $product->images()->max('sort_order') ?? 0;
+            // ឆែកមើលថា តើ Product នេះមាន Thumbnail នៅឡើយ?
+            $hasThumbnail = $product->images()->where('is_thumbnail', true)->exists();
 
-        foreach ($files as $index => $file) {
+            foreach ($request->file('images') as $index => $file) {
+                $path = $storage->uploadImage(
+                    file: $file,
+                    bucket: config('services.supabase.bucket_product'),
+                    prefix: "products/{$product->id}"
+                );
 
-            $imagePath = $storage->uploadImage(
-                file: $file,
-                bucket: env('SUPABASE_PRODUCT_BUCKET'),
-                prefix: 'products'
-            );
+                $image = $product->images()->create([
+                    'image_path'   => $path,
+                    'is_thumbnail' => (!$hasThumbnail && $index === 0), // បើគ្មាន Thumbnail ទេ រូបទី១ នឹងក្លាយជា Thumbnail
+                    'sort_order'   => $index,
+                ]);
 
-            if ($request->boolean('is_thumbnail') && $index === 0) {
-                $product->images()->update(['is_thumbnail' => false]);
-                $isThumbnail = true;
-            } else {
-                $isThumbnail = false;
+                $uploadedImages[] = $image;
+                if (!$hasThumbnail && $index === 0) $hasThumbnail = true;
             }
 
-            $createdImages[] = ProductImage::create([
-                'product_id' => $product->id,
-                'image_path' => $imagePath,
-                'is_thumbnail' => $isThumbnail,
-                'sort_order' => $lastOrder + $index + 1,
-            ]);
-        }
-
-        return response()->json([
-            'message' => 'Images uploaded successfully',
-            'data' => $createdImages,
-        ], 201);
+            return $this->sendResponse(
+                ProductImageResource::collection($uploadedImages),
+                'Images uploaded successfully.',
+                201
+            );
+        });
     }
 
-
-
-    public function setThumbnail($id)
+    // ៣. កំណត់រូបភាពណាមួយឱ្យទៅជា Thumbnail
+    public function setThumbnail(string $id)
     {
         $image = ProductImage::findOrFail($id);
 
-        ProductImage::where('product_id', $image->product_id)
-            ->update(['is_thumbnail' => false]);
+        return DB::transaction(function () use ($image) {
+            // ដក Thumbnail ចាស់ចេញពីផលិតផលនេះទាំងអស់
+            ProductImage::where('product_id', $image->product_id)
+                ->update(['is_thumbnail' => false]);
 
-        $image->update(['is_thumbnail' => true]);
+            // កំណត់រូបភាពនេះជា Thumbnail ថ្មី
+            $image->update(['is_thumbnail' => true]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Thumbnail updated'
-        ]);
+            return $this->sendResponse(new ProductImageResource($image), 'Thumbnail updated successfully.');
+        });
     }
 
-    public function destroy($id)
+    // ៤. លុបរូបភាពសន្លឹកណាមួយ
+    public function destroy(string $id, SupabaseStorageService $storage)
     {
         $image = ProductImage::findOrFail($id);
 
-        // Delete file
-        $storage = new SupabaseStorageService();
-        $storage->deleteImage($image->image_path, env('SUPABASE_PRODUCT_BUCKET'));
+        return DB::transaction(function () use ($image, $storage) {
+            // លុប File ក្នុង Supabase
+            $storage->deleteImage($image->image_path, config('services.supabase.bucket_product'));
 
-        $image->delete();
+            // បើលុបចំរូបដែលជា Thumbnail យើងត្រូវរក្សាការការពារ (Optional: អ្នកអាចដាស់តឿន Admin)
+            $wasThumbnail = $image->is_thumbnail;
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Image deleted'
-        ]);
+            $image->delete();
+
+            // បើលុបចំ Thumbnail ព្យាយាមកំណត់រូបដែលនៅសល់មួយទៀតជា Thumbnail
+            if ($wasThumbnail) {
+                $nextImage = ProductImage::where('product_id', $image->product_id)->first();
+                if ($nextImage) {
+                    $nextImage->update(['is_thumbnail' => true]);
+                }
+            }
+
+            return $this->sendResponse([], 'Image deleted successfully.');
+        });
     }
 }

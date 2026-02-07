@@ -5,66 +5,66 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ProductSeries;
 use Illuminate\Http\Request;
+use App\Http\Resources\ProductSeriesResource;
+use Illuminate\Support\Facades\DB;
 
 class ProductSeriesController extends Controller
 {
     public function index()
     {
-        return response()->json([
-            'success' => true,
-            'data' => ProductSeries::where('is_active', true)->get()
-        ]);
+        $series = ProductSeries::orderBy('created_at', 'desc')->get();
+        return $this->sendResponse(ProductSeriesResource::collection($series), 'Product series retrieved.');
     }
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'slug' => 'nullable|string|unique:product_series,slug',
+        $request->validate([
+            'brand_id'    => 'required|exists:brands,id', // បន្ថែមការឆែក Brand ID
+            'name'        => 'required|string|max:255|unique:product_series,name',
             'description' => 'nullable|string',
+            'is_active'   => 'boolean',
         ]);
 
-        return response()->json([
-            'success' => true,
-            'data' => ProductSeries::create($data)
-        ], 201);
+        $series = ProductSeries::create($request->all());
+
+        return $this->sendResponse(new ProductSeriesResource($series), 'Series created successfully.', 201);
     }
 
-    public function showBySlug(string $slug)
+    public function update(Request $request, string $id)
     {
-        $series = ProductSeries::where('slug', $slug)
-            ->with(['products' => function ($q) {
-                $q->where('is_active', true);
-            }])
-            ->firstOrFail();
+        $series = ProductSeries::findOrFail($id);
 
-        return response()->json([
-            'success' => true,
-            'data' => $series
-        ]);
-    }
-
-    public function update(Request $request, ProductSeries $productSeries)
-    {
-        $data = $request->validate([
-            'name' => 'sometimes|string',
-            'slug' => 'sometimes|unique:product_series,slug,' . $productSeries->id,
+        $request->validate([
+            'brand_id'    => 'sometimes|exists:brands,id',
+            'name'        => 'sometimes|string|max:255|unique:product_series,name,' . $id,
             'description' => 'nullable|string',
-            'is_active' => 'boolean',
+            'is_active'   => 'boolean',
         ]);
 
-        $productSeries->update($data);
+        $series->update($request->all());
 
-        return response()->json([
-            'message' => 'Series updated',
-            'data' => $productSeries->fresh()
-        ]);
+        return $this->sendResponse(new ProductSeriesResource($series), 'Series updated successfully.');
     }
 
-    public function destroy(ProductSeries $productSeries)
+    // បន្ថែមមុខងារសម្រាប់ប្តូរ status យ៉ាងរហ័ស
+    public function toggleStatus(string $id)
     {
-        $productSeries->delete();
+        $series = ProductSeries::findOrFail($id);
+        $series->update(['is_active' => !$series->is_active]);
 
-        return response()->json(['message' => 'Series deleted']);
+        return $this->sendResponse(
+            new ProductSeriesResource($series),
+            'Series status updated to ' . ($series->is_active ? 'Active' : 'Inactive')
+        );
+    }
+
+    public function destroy(string $id)
+    {
+        $series = ProductSeries::findOrFail($id);
+
+        return DB::transaction(function () use ($series) {
+            $series->delete();
+            return $this->sendResponse([], 'Series deleted successfully.');
+        });
     }
 }

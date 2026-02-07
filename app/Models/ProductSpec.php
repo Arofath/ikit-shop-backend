@@ -18,7 +18,11 @@ class ProductSpec extends Model
         'spec_group',
         'spec_key',
         'spec_value',
+        'sort_order',
     ];
+
+    // រាល់ពេល Spec ប្រែប្រួល Product ក៏ Update updated_at ដែរ
+    protected $touches = ['product'];
 
     public function product()
     {

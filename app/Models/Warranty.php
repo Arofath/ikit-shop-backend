@@ -10,15 +10,25 @@ class Warranty extends Model
 {
     use HasFactory, HasUuids;
 
-    public $incrementing = false;
-    protected $keyType = 'string';
-
     protected $fillable = [
+        'name',
         'duration_months',
-        'description'
+        'type',
+        'description',
+        'is_active',
     ];
 
-    public function products() {
+    protected $casts = [
+        'duration_months' => 'integer',
+        'is_active'       => 'boolean',
+    ];
+
+    /**
+     * ទំនាក់ទំនងជាមួយ Product
+     * (Product មួយអាចមានកិច្ចសន្យាធានាមួយ)
+     */
+    public function products()
+    {
         return $this->hasMany(Product::class);
     }
 }

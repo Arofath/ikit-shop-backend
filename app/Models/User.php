@@ -32,6 +32,7 @@ class User extends Authenticatable
 
     protected $hidden = [
         'password',
+        'provider_id',
         'remember_token',
     ];
 
@@ -52,9 +53,14 @@ class User extends Authenticatable
         'is_active' => true,
     ];
 
-    public function customerProfile()
+    public function isSuperAdmin(): bool
     {
-        return $this->hasOne(CustomerProfile::class);
+        return $this->email === config('app.super_admin_email');
+    }
+
+    public function profile()
+    {
+        return $this->hasOne(UserProfile::class);
     }
 
     public function otps()

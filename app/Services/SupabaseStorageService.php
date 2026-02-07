@@ -5,9 +5,7 @@ namespace App\Services;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
-
 use Illuminate\Http\Client\Response;
-
 
 class SupabaseStorageService
 {
@@ -65,5 +63,29 @@ class SupabaseStorageService
         Http::withHeaders([
             'Authorization' => 'Bearer ' . $this->serviceKey,
         ])->delete($deleteUrl);
+    }
+
+    // ថែមក្នុង app/Services/SupabaseStorageService.php
+
+    public function listFiles(string $bucket): array
+    {
+       
+        $listUrl = "{$this->supabaseUrl}/storage/v1/object/list/{$bucket}";
+        /** @var Response $response */
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $this->serviceKey,
+        ])->post($listUrl, ['prefix' => '']);
+
+        return $response->successful() ? $response->json() : [];
+    }
+
+    public function deleteMultiple(string $bucket, array $fileNames): void
+    {
+        if (empty($fileNames)) return;
+
+        $deleteUrl = "{$this->supabaseUrl}/storage/v1/object/{$bucket}";
+        Http::withHeaders([
+            'Authorization' => 'Bearer ' . $this->serviceKey,
+        ])->delete($deleteUrl, ['prefixes' => $fileNames]);
     }
 }

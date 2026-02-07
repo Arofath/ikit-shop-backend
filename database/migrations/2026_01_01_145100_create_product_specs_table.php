@@ -16,13 +16,11 @@ return new class extends Migration
             $table->uuid('product_id');
             $table->string('spec_group', 100); // Processor, Memory, Display, etc.
             $table->string('spec_key', 100);   // CPU, RAM, Storage, Screen Size, etc.
-            $table->string('spec_value'); // Intel i7, 16
+            $table->text('spec_value'); // Intel i7, 16
+            $table->integer('sort_order')->default(0); // បន្ថែមសម្រាប់រៀបលំដាប់
             $table->timestamps();
 
-            // Foreign key constraint
             $table->foreign('product_id')->references('id')->on('products')->cascadeOnDelete();
-
-            // Optional indexes for performance
             $table->index(['product_id', 'spec_group']);
         });
     }
@@ -36,18 +34,3 @@ return new class extends Migration
     }
 };
 
-
-// Schema::create('product_specs', function (Blueprint $table) {
-//     $table->uuid('id')->primary();
-//     $table->uuid('product_id');
-
-//     $table->string('spec_group', 100);
-//     $table->string('spec_key', 100);
-//     $table->string('spec_value', 255);
-//     $table->integer('sort_order')->nullable();
-
-//     $table->timestamps();
-
-//     $table->foreign('product_id')->references('id')->on('products')->cascadeOnDelete();
-//     $table->index(['product_id', 'spec_group']);
-// });

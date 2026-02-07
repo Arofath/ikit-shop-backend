@@ -5,27 +5,34 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
+use App\Http\Resources\SupplierResource;
 
 class SupplierController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
         $query = Supplier::query();
 
-        // 🔍 Search by name / phone / email
-        if ($request->search) {
-            $query->where('name', 'ilike', '%' . $request->search . '%')
-                ->orWhere('phone', 'ilike', '%' . $request->search . '%')
-                ->orWhere('email', 'ilike', '%' . $request->search . '%');
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                    ->orWhere('phone', 'LIKE', "%{$search}%")
+                    ->orWhere('email', 'LIKE', "%{$search}%");
+            });
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => $query->latest()->get()
-        ]);
+        if ($request->has('status')) {
+            $query->where('status', filter_var($request->status, FILTER_VALIDATE_BOOLEAN));
+        }
+
+        $suppliers = $query->latest()->paginate($request->limit ?? 10);
+
+        // ប្រើ getData(true) ដើម្បីបង្ហាញព័ត៌មាន Pagination ក្នុង Response
+        return $this->sendResponse(
+            SupplierResource::collection($suppliers)->response()->getData(true),
+            'Suppliers retrieved successfully.'
+        );
     }
 
     /**
@@ -35,18 +42,19 @@ class SupplierController extends Controller
     {
         $data = $request->validate([
             'name'    => 'required|string|max:255',
-            'phone'   => 'required|string|unique:suppliers,phone',
-            'email'   => 'nullable|email|unique:suppliers,email',
-            'address' => 'nullable|string',
+            'phone'   => 'required|string|max:20|unique:suppliers,phone',
+            'email'   => 'nullable|email|max:255|unique:suppliers,email',
+            'address' => 'nullable|string|max:500',
             'status'  => 'boolean',
         ]);
 
         $supplier = Supplier::create($data);
 
-        return response()->json([
-            'success' => true,
-            'data' => $supplier
-        ], 201);
+        return $this->sendResponse(
+            new SupplierResource($supplier),
+            'Supplier created successfully.',
+            201
+        );
     }
 
     /**
@@ -54,10 +62,10 @@ class SupplierController extends Controller
      */
     public function show(Supplier $supplier)
     {
-        return response()->json([
-            'success' => true,
-            'data' => $supplier
-        ]);
+        return $this->sendResponse(
+            new SupplierResource($supplier),
+            'Supplier details retrieved.'
+        );
     }
 
     /**
@@ -67,19 +75,18 @@ class SupplierController extends Controller
     {
         $data = $request->validate([
             'name'    => 'sometimes|required|string|max:255',
-            'phone'   => 'sometimes|required|string|unique:suppliers,phone,' . $supplier->id,
-            'email'   => 'nullable|email|unique:suppliers,email,' . $supplier->id,
-            'address' => 'nullable|string',
+            'phone'   => 'sometimes|required|string|max:20|unique:suppliers,phone,' . $supplier->id,
+            'email'   => 'nullable|email|max:255|unique:suppliers,email,' . $supplier->id,
+            'address' => 'nullable|string|max:500',
             'status'  => 'boolean',
         ]);
 
         $supplier->update($data);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Supplier updated successfully',
-            'data' => $supplier
-        ]);
+        return $this->sendResponse(
+            new SupplierResource($supplier),
+            'Supplier updated successfully.'
+        );
     }
 
     /**
@@ -87,11 +94,16 @@ class SupplierController extends Controller
      */
     public function destroy(Supplier $supplier)
     {
+        if ($supplier->stockMovements()->exists()) {
+            return $this->sendError(
+                'Validation Error.',
+                ['Cannot delete this supplier because they have a history of stock transactions.'],
+                400
+            );
+        }
+
         $supplier->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Supplier deleted successfully'
-        ]);
+        return $this->sendResponse([], 'Supplier deleted successfully.');
     }
 }

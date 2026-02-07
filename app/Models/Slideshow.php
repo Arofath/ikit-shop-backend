@@ -13,12 +13,7 @@ class Slideshow extends Model
     public $incrementing = false;
     protected $keyType = 'string';
 
-    protected $fillable = [
-        'product_series_id',
-        'image',
-        'position',
-        'is_active',
-    ];
+    protected $fillable = ['product_series_id', 'image_path', 'position', 'is_active'];
 
     protected function casts(): array
     {

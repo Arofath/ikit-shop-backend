@@ -7,134 +7,157 @@ use App\Models\Slideshow;
 use App\Services\SupabaseStorageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Http\Resources\SlideshowResource;
 
 class SlideshowController extends Controller
 {
+    // ១. បង្ហាញបញ្ជី Slideshow ទាំងអស់សម្រាប់ Admin
     public function index()
     {
-        return response()->json([
-            'success' => true,
-            'data' => Slideshow::with('series:id,name,slug')
-                ->orderBy('position')
-                ->get()
-        ]);
+        $slides = Slideshow::with('series')->orderBy('position')->get();
+        return $this->sendResponse(SlideshowResource::collection($slides), 'Slideshows retrieved.');
     }
 
-    public function show(Slideshow $slideshow)
-    {
-        return response()->json([
-            'success' => true,
-            'data' => $slideshow->load('series:id,name,slug')
-        ]);
-    }
-
-    public function active()
-    {
-        return response()->json([
-            'success' => true,
-            'data' => Slideshow::with('series:id,name,slug')
-                ->where('is_active', true)
-                ->orderBy('position')
-                ->get()
-        ]);
-    }
-
+    // ២. បង្កើត Slideshow ថ្មី
     public function store(Request $request, SupabaseStorageService $storage)
     {
         $request->validate([
+            'image'             => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
             'product_series_id' => 'nullable|exists:product_series,id',
-            'image' => 'required|image|max:4096',
-            'position' => 'nullable|integer|min:1',
-            'is_active' => 'boolean',
+            'position'          => 'nullable|integer|min:0',
+            'is_active'         => 'boolean',
         ]);
 
-        $image = $storage->uploadImage(
-            file: $request->file('image'),
-            bucket: env('SUPABASE_SLIDESHOW_BUCKET'),
-            prefix: 'slideshow'
-        );
+        return DB::transaction(function () use ($request, $storage) {
+            $requestedPosition = $request->position ?? (Slideshow::max('position') + 1);
 
-        $data = Slideshow::create([
-            'product_series_id' => $request->product_series_id,
-            'image' => $image,
-            'position' => $request->position ?? Slideshow::max('position') + 1,
-            'is_active' => $request->is_active ?? true
-        ]);
+            // --- បច្ចេកទេសកុំឱ្យជាន់គ្នា (Shifting Logic) ---
+            // រាល់ Slide ណាដែលមានលេខរៀងធំជាង ឬស្មើ លេខដែលទើបនឹងបញ្ចូល 
+            // វានឹងត្រូវបូកថែម ១ (increment) ដើម្បីទុកកន្លែងឱ្យ Slide ថ្មីនេះ
+            Slideshow::where('position', '>=', $requestedPosition)->increment('position');
 
-        return response()->json([
-            'success' => true,
-            'data' => $data
-        ], 201);
-    }
-
-    public function update(Request $request, Slideshow $slideshow, SupabaseStorageService $storage)
-    {
-        $request->validate([
-            'product_series_id' => 'nullable|exists:product_series,id',
-            'image' => 'sometimes|image|max:4096',
-            'position' => 'nullable|integer|min:1',
-            'is_active' => 'boolean',
-        ]);
-
-        $image = $slideshow->image;
-
-        if ($request->hasFile('image')) {
-            $image = $storage->uploadImage(
+            // Upload រូបភាពទៅ Supabase
+            $path = $storage->uploadImage(
                 file: $request->file('image'),
-                bucket: env('SUPABASE_SLIDESHOW_BUCKET'),
-                oldImageUrl: $slideshow->image,
-                prefix: 'slideshow'
+                bucket: config('services.supabase.bucket_slideshow'),
+                prefix: 'banners'
             );
-        }
 
-        $slideshow->update([
-            'product_series_id' => $request->product_series_id ?? $slideshow->product_series_id,
-            'image' => $image,
-            'position' => $request->position ?? $slideshow->position,
-            'is_active' => $request->is_active ?? $slideshow->is_active,
-        ]);
+            $slide = Slideshow::create([
+                'image_path'        => $path,
+                'product_series_id' => $request->product_series_id,
+                'position'          => $requestedPosition,
+                'is_active'         => $request->is_active ?? true,
+            ]);
 
-        return response()->json([
-            'message' => 'Slideshow updated',
-            'data' => $slideshow
-        ]);
+            return $this->sendResponse(new SlideshowResource($slide), 'Slideshow created and positions shifted.', 201);
+        });
     }
 
-    public function destroy(Slideshow $slideshow, SupabaseStorageService $storage)
+    public function update(Request $request, string $id, SupabaseStorageService $storage)
     {
-        $storage->deleteImage($slideshow->image, env('SUPABASE_SLIDESHOW_BUCKET'));
-        $slideshow->delete();
-        return response()->json(['message' => 'Slideshow deleted']);
+        $slide = Slideshow::findOrFail($id);
+
+        // ១. ការកំណត់លក្ខខណ្ឌ Validation
+        $request->validate([
+            'image'             => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
+            'product_series_id' => 'nullable|exists:product_series,id',
+            'position'          => 'nullable|integer|min:0',
+            'is_active'         => 'nullable',
+        ]);
+
+        return DB::transaction(function () use ($request, $slide, $storage) {
+            // ២. Logic កែប្រែរូបភាព (ដូររូបចាស់ចេញ បើមានរូបថ្មី)
+            if ($request->hasFile('image')) {
+                // លុបរូបចាស់ពី Supabase
+                $storage->deleteImage($slide->image_path, config('services.supabase.bucket_slideshow'));
+
+                // Upload រូបថ្មី
+                $slide->image_path = $storage->uploadImage(
+                    file: $request->file('image'),
+                    bucket: config('services.supabase.bucket_slideshow'),
+                    prefix: 'banners'
+                );
+            }
+
+            // ៣. Logic រៀបលំដាប់លេខរៀង (Shifting Position)
+            if ($request->has('position') && $request->position != $slide->position) {
+                $oldPos = $slide->position;
+                $newPos = (int) $request->position;
+
+                if ($newPos > $oldPos) {
+                    // បើប្តូរពីលេខតូចទៅធំ (ឧ៖ ១ -> ៣) ត្រូវទាញលេខកណ្តាលថយក្រោយ
+                    Slideshow::whereBetween('position', [$oldPos + 1, $newPos])->decrement('position');
+                } else {
+                    // បើប្តូរពីលេខធំមកតូច (ឧ៖ ៣ -> ១) ត្រូវរុញលេខកណ្តាលទៅមុខ
+                    Slideshow::whereBetween('position', [$newPos, $oldPos - 1])->increment('position');
+                }
+                $slide->position = $newPos;
+            }
+
+            // ៤. កែប្រែព័ត៌មានផ្សេងៗ
+            if ($request->has('product_series_id')) {
+                $slide->product_series_id = $request->product_series_id;
+            }
+
+            if ($request->has('is_active')) {
+                // បំប្លែង "true"/"1" ឱ្យទៅជា Boolean ពិតប្រាកដ
+                $slide->is_active = filter_var($request->is_active, FILTER_VALIDATE_BOOLEAN);
+            }
+
+            $slide->save();
+
+            return $this->sendResponse(new SlideshowResource($slide), 'Slideshow updated successfully.');
+        });
+    }
+
+    // ៤. លុប Slideshow
+    public function destroy(string $id, SupabaseStorageService $storage)
+    {
+        $slide = Slideshow::findOrFail($id);
+        $currentPosition = $slide->position;
+
+        return DB::transaction(function () use ($slide, $storage, $currentPosition) {
+            // កែសម្រួល៖ ប្រើ config ឱ្យដូច store/update ដើម្បីកុំឱ្យមានបញ្ហា permission ឬបាត់ file
+            $storage->deleteImage($slide->image_path, config('services.supabase.bucket_slideshow'));
+
+            $slide->delete();
+
+            // ទាញលេខរៀងដែលនៅពីក្រោយ ឱ្យថយមកក្រោយ ១ លេខវិញ
+            Slideshow::where('position', '>', $currentPosition)->decrement('position');
+
+            return $this->sendResponse([], 'Slideshow deleted and positions reordered.');
+        });
+    }
+
+    public function toggleStatus(string $id)
+    {
+        $slide = Slideshow::findOrFail($id);
+
+        // ប្តូរពី true ទៅ false ឬពី false ទៅ true
+        $slide->update([
+            'is_active' => !$slide->is_active
+        ]);
+
+        return $this->sendResponse(
+            new SlideshowResource($slide),
+            'Slideshow status updated to ' . ($slide->is_active ? 'Active' : 'Inactive')
+        );
     }
 
     public function reorder(Request $request)
     {
         $request->validate([
-            'orders' => 'required|array',
-            'orders.*.id' => 'required|exists:slideshows,id',
-            'orders.*.position' => 'required|integer|min:1',
+            'ids' => 'required|array',
+            'ids.*' => 'exists:slideshows,id'
         ]);
 
-        DB::transaction(function () use ($request) {
-            foreach ($request->orders as $item) {
-                Slideshow::where('id', $item['id'])->update(['position' => $item['position']]);
+        return DB::transaction(function () use ($request) {
+            foreach ($request->ids as $index => $id) {
+                Slideshow::where('id', $id)->update(['position' => $index]);
             }
+
+            return $this->sendResponse([], 'Slideshow order updated successfully.');
         });
-
-        return response()->json([
-            'message' => 'Slideshow reordered successfully'
-        ]);
-    }
-
-    public function toggle(Slideshow $slideshow)
-    {
-        $slideshow->update([
-            'is_active' => !$slideshow->is_active
-        ]);
-
-        return response()->json([
-            'message' => 'Status updated',
-            'data' => $slideshow
-        ]);
     }
 }

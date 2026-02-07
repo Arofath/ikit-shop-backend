@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\CategoryResource;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Services\SupabaseStorageService;
+use Illuminate\Support\Facades\DB;
 
 class CategoryController extends Controller
 {
@@ -14,14 +16,16 @@ class CategoryController extends Controller
     public function index()
     {
         $categories = Category::whereNull('parent_id')
-            ->with('children.children') // support deep nesting
+            ->with(['children' => function ($query) {
+                $query->orderBy('name', 'asc');
+            }])
             ->orderBy('name')
             ->get();
 
-        return response()->json([
-            'success' => true,
-            'data' => $categories,
-        ]);
+        return $this->sendResponse(
+            CategoryResource::collection($categories),
+            'Categories tree retrieved successfully.'
+        );
     }
 
     // Show category detail
@@ -29,10 +33,10 @@ class CategoryController extends Controller
     {
         $category = Category::with('children')->findOrFail($id);
 
-        return response()->json([
-            'success' => true,
-            'data' => $category,
-        ]);
+        return $this->sendResponse(
+            new CategoryResource($category),
+            'Category retrieved successfully.'
+        );
     }
 
     // Store category
@@ -45,24 +49,26 @@ class CategoryController extends Controller
         ]);
 
 
-        $publicUrl = $storage->uploadImage(
-            file: $request->file('image'),
-            bucket: env('SUPABASE_CATEGORY_BUCKET'),
-            prefix: 'category'
-        );
-        
-        $category = Category::create([
-            'name' => $request->name,
-            'slug' => Str::slug($request->name),
-            'image' => $publicUrl,
-            'parent_id' => $request->parent_id,
-            'is_active' => true,
-        ]);
+        return DB::transaction(function () use ($request, $storage) {
+            $publicUrl = null;
+            if ($request->hasFile('image')) {
+                $publicUrl = $storage->uploadImage(
+                    file: $request->file('image'),
+                    bucket: config('services.supabase.bucket_category'),
+                    prefix: 'category'
+                );
+            }
 
-        return response()->json([
-            'message' => 'Category created successfully',
-            'data' => $category,
-        ], 201);
+            $category = Category::create([
+                'name'      => $request->name,
+                'slug'      => $this->generateUniqueSlug($request->name),
+                'image'     => $publicUrl,
+                'parent_id' => $request->parent_id,
+                'is_active' => true,
+            ]);
+
+            return $this->sendResponse(new CategoryResource($category), 'Category created successfully.', 201);
+        });
     }
 
     // Update category
@@ -76,32 +82,32 @@ class CategoryController extends Controller
             'image' => 'nullable|image|max:2048',
             'is_active' => 'boolean',
         ]);
-
-        if($request->parent_id === $id) {
-            return response()->json([
-                'message' => 'Cannot set parent category to itself'
-            ], 400);
+        // ការពារមិនឱ្យយកខ្លួនឯងធ្វើជា Parent
+        if ($request->parent_id === $id) {
+            return $this->sendError('A category cannot be its own parent.', [], 400);
         }
 
-        $publicUrl = $storage->uploadImage(
-            file: $request->file('image'),
-            bucket: env('SUPABASE_CATEGORY_BUCKET'),
-            oldImageUrl: $category->image,
-            prefix: 'category'
-        );
+        return DB::transaction(function () use ($request, $storage, $category) {
+            if ($request->has('name')) {
+                $category->name = $request->name;
+                $category->slug = $this->generateUniqueSlug($request->name, $category->id);
+            }
 
-        $category->update([
-            'name' => $request->name ?? $category->name,
-            'slug' => $request->name ? Str::slug($request->name) : $category->slug,
-            'image' => $publicUrl ?? $category->image,
-            'parent_id' => $request->parent_id,
-            'is_active' => $request->is_active ?? $category->is_active,
-        ]);
+            if ($request->hasFile('image')) {
+                $category->image = $storage->uploadImage(
+                    file: $request->file('image'),
+                    bucket: config('services.supabase.bucket_category'),
+                    oldImageUrl: $category->image,
+                    prefix: 'category'
+                );
+            }
 
-        return response()->json([
-            'message' => 'Category updated successfully',
-            'data' => $category
-        ]);
+            $category->is_active = $request->get('is_active', $category->is_active);
+            $category->parent_id = $request->get('parent_id', $category->parent_id);
+            $category->save();
+
+            return $this->sendResponse(new CategoryResource($category), 'Category updated successfully.');
+        });
     }
 
     // Delete category
@@ -110,17 +116,24 @@ class CategoryController extends Controller
         $category = Category::findOrFail($id);
 
         if ($category->children()->exists()) {
-            return response()->json([
-                'message' => 'Cannot delete category with subcategories',
-            ], 400);
+            return $this->sendError('Cannot delete category with subcategories.', [], 400);
         }
 
-        $storage->deleteImage($category->image, env('SUPABASE_CATEGORY_BUCKET'));
-        $category->delete();
+        // លុបរូបភាពពី Supabase
+        if ($category->image) {
+            $storage->deleteImage($category->image, config('services.supabase.bucket_category'));
+        }
 
-        return response()->json([
-            'message' => 'Category deleted successfully'
-        ]);
+        $category->delete();
+        return $this->sendResponse([], 'Category deleted successfully.');
     }
 
+    // Generate unique slug
+    // Helper: បង្កើត Slug ដែលមិនជាន់គ្នា
+    private function generateUniqueSlug($name, $id = null)
+    {
+        $slug = Str::slug($name);
+        $count = Category::where('slug', $slug)->when($id, fn($q) => $q->where('id', '!=', $id))->count();
+        return $count > 0 ? "{$slug}-" . time() : $slug;
+    }
 }

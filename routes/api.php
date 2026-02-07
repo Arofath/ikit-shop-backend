@@ -1,123 +1,144 @@
 <?php
 
-use App\Http\Controllers\Api\Admin\BrandController;
-use App\Http\Controllers\Api\Admin\CategoryController;
-use App\Http\Controllers\Api\Admin\ProductController;
-use App\Http\Controllers\Api\Admin\ProductImageController;
-use App\Http\Controllers\Api\Admin\ProductSeriesController;
-use App\Http\Controllers\Api\Admin\ProductSpecController;
-use App\Http\Controllers\Api\Admin\ProductStockMovementController;
-use App\Http\Controllers\Api\Admin\SlideshowController;
-use App\Http\Controllers\Api\Admin\SupplierController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\CustomerProfileController;
-use App\Http\Controllers\Api\Admin\UserManagementController;
-use App\Http\Controllers\WarrantyController;
+use App\Http\Controllers\Api\PublicWarrantyController;
+use App\Http\Controllers\Api\Admin\{
+    UserManagementController,
+    CategoryController,
+    BrandController,
+    ProductController,
+    ProductImageController,
+    ProductSpecController,
+    ProductStockMovementController,
+    ProductSeriesController,
+    SlideshowController,
+    SupplierController,
+    WarrantyController,
+    ProductSerialController,
+};
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
-
-// Authentication routes, public
-Route::post('/register', [AuthController::class, 'register']);
+// =============================================================
+// 1. PUBLIC ROUTES (Guests & Customers)
+// =============================================================
 Route::post('/login', [AuthController::class, 'login']);
+Route::middleware('throttle:10,1')->group(function () {
+    Route::post('/register', [AuthController::class, 'register']);
+});
 
-// public (customer/guest)
-Route::get('/products', [ProductController::class, 'index']);
-//Route::get('/products', [ProductController::class, 'show']);
-Route::get('/products/{slug}', [ProductController::class, 'showBySlug']);
+Route::prefix('products')->group(function () {
+    Route::get('/', [ProductController::class, 'index']);
+    Route::get('/{slug}', [ProductController::class, 'showBySlug']);
+    Route::get('/{product:slug}/images', [ProductImageController::class, 'index']);
+});
 
-// Authentication routes, protected
-Route::middleware(['auth:sanctum'])->group(function () {
+Route::get('/categories', [CategoryController::class, 'index']);
+Route::get('/brands', [BrandController::class, 'index']);
+Route::get('/slideshows', [SlideshowController::class, 'index']);
+Route::get('/product-series', [ProductSeriesController::class, 'index']);
+// Public Route (អតិថិជនប្រើ)
+Route::get('check-warranty', [PublicWarrantyController::class, 'check']);
+// =============================================================
+// 2. PROTECTED ROUTES (Logged-in Users)
+// =============================================================
+Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    // Customer-only route
-    Route::middleware('role:customer')->group(function () {
-        Route::get('/customer/profile', [CustomerProfileController::class, 'show']);
-        Route::put('/customer/profile', [CustomerProfileController::class, 'update']);
-        Route::post('/customer/profile/image', [CustomerProfileController::class, 'uploadImage']);
+    // User profile
+    Route::prefix('me')->group(function () {
+        Route::get('/profile', [UserProfileController::class, 'show']);
+        Route::put('/profile', [UserProfileController::class, 'update']);
+        Route::post('/profile/image', [UserProfileController::class, 'uploadImage']);
     });
 
-    // Admin-only route
+    // =============================================================
+    // 3. ADMIN ONLY ROUTES (Super Admin & Admins)
+    // =============================================================
     Route::middleware('role:admin')->prefix('admin')->group(function () {
-        Route::get('/users', [UserManagementController::class, 'index']);
-        Route::get('/users/{id}', [UserManagementController::class, 'show']);
-        Route::patch('/users/{id}/status', [UserManagementController::class, 'updateStatus']);
-        Route::patch('/users/{id}/role', [UserManagementController::class, 'updateRole']);
-        Route::delete('/users/{id}', [UserManagementController::class, 'destroy']);
 
-        // Category routes
-        Route::apiResource('categories', CategoryController::class);
-
-        // Brand routes
-        Route::get('/brands', [BrandController::class, 'index']);
-        Route::post('/brands', [BrandController::class, 'store']);
-        Route::get('/brands/{id}', [BrandController::class, 'show']);
-        Route::put('/brands/{id}', [BrandController::class, 'update']);
-        Route::delete('/brands/{id}', [BrandController::class, 'destroy']);
-
-        // Product routes
-        Route::post('/products', [ProductController::class, 'store']);
-        Route::put('/products/{id}', [ProductController::class, 'update']);
-        Route::delete('/products/{id}', [ProductController::class, 'destroy']);
-
-        // Product Image routes
-        Route::prefix('products')->group(function () {
-            Route::get('{product}/images', [ProductImageController::class, 'index']);
-            Route::post('{product}/images', [ProductImageController::class, 'store']);
+        // User Management
+        Route::prefix('users')->group(function () {
+            Route::get('/', [UserManagementController::class, 'index']);
+            Route::get('/{id}', [UserManagementController::class, 'show']);
+            Route::patch('/{id}/status', [UserManagementController::class, 'updateStatus']);
+            Route::patch('/{id}/role', [UserManagementController::class, 'updateRole']);
+            Route::delete('/{id}', [UserManagementController::class, 'destroy']);
         });
+
+        // Simplified Resources
+        // Categories
+        Route::apiResource('categories', CategoryController::class);
+        // Brands
+        Route::apiResource('brands', BrandController::class);
+
+        // Suppliers
+        Route::delete('suppliers/{supplier}', [SupplierController::class, 'destroy']);
+        Route::apiResource('suppliers', SupplierController::class)->except(['destroy']);
+
+        // Warranties
+        Route::apiResource('warranties', WarrantyController::class);
+
+        // Products & Sub-resources
+        Route::prefix('products')->group(function () {
+            Route::post('/', [ProductController::class, 'store']);
+            Route::get('/', [ProductController::class, 'index']);
+            Route::get('/{id}', [ProductController::class, 'show']);
+            Route::put('/{id}', [ProductController::class, 'update']);
+            Route::delete('/{id}', [ProductController::class, 'destroy']); // Soft Delete
+
+            // មុខងារបន្ថែមសម្រាប់ Soft Deletes (Trash Management)
+            Route::get('/trash/all', [ProductController::class, 'trash']); // មើលផលិតផលក្នុង Trash
+            Route::patch('/{id}/restore', [ProductController::class, 'restore']); // យកចេញពី Trash
+            Route::delete('/{id}/force', [ProductController::class, 'forceDelete']); // លុបដាច់ពី System
+
+            // Stock for specific product
+            Route::get('/{product}/stock', [ProductStockMovementController::class, 'productStock']);
+
+            // Images
+            Route::post('/{product}/images', [ProductImageController::class, 'store']);
+
+            // Specs
+            Route::post('/{product}/specs/sync', [ProductSpecController::class, 'sync']);
+            // Route::get('/{product}/specs', [ProductSpecController::class, 'index']);
+        });
+
+        // Standalone Image/Spec Actions
         Route::patch('product-images/{id}/thumbnail', [ProductImageController::class, 'setThumbnail']);
         Route::delete('product-images/{id}', [ProductImageController::class, 'destroy']);
-
-        // Product Spec routes
-        Route::prefix('products')->group(function () {
-            Route::get('{product}/specs', [ProductSpecController::class, 'index']);
-            Route::post('{product}/specs', [ProductSpecController::class, 'store']);
-        });
         Route::patch('product-specs/{spec}', [ProductSpecController::class, 'update']);
         Route::delete('product-specs/{spec}', [ProductSpecController::class, 'destroy']);
+        
+        // ​​Product Series
+        Route::apiResource('product-series', ProductSeriesController::class);
 
-        // Warrenty Route
-        Route::get('warranties', [WarrantyController::class, 'index']);
-        Route::post('warranties', [WarrantyController::class, 'store']);
-        Route::get('warranties/{warranty}', [WarrantyController::class, 'show']);
-        Route::patch('warranties/{warranty}', [WarrantyController::class, 'update']);
-        Route::delete('warranties/{warranty}', [WarrantyController::class, 'destroy']);
+        // Stock Movement Routes
+        Route::prefix('stock-movements')->group(function () {
+            Route::get('/', [ProductStockMovementController::class, 'index']);      // មើលប្រវត្តិស្តុកទាំងអស់
+            Route::post('/', [ProductStockMovementController::class, 'store']);     // បញ្ចូលស្តុក (IN/OUT/ADJUST)
+            Route::get('/{id}', [ProductStockMovementController::class, 'show']);   // មើលព័ត៌មានលម្អិត ១ record
 
-        // Supplier routes
-        Route::apiResource('suppliers', SupplierController::class);
-
-        // Product Stock Movement routes
-        Route::get('stock-movements', [ProductStockMovementController::class, 'index']);
-        Route::post('stock-movements', [ProductStockMovementController::class, 'store']);
-        Route::get('stock-movements/{productStockMovement}', [ProductStockMovementController::class, 'show']);
-        Route::delete('stock-movements/{productStockMovement}', [ProductStockMovementController::class, 'destroy']);
-        // 📦 Get current stock for product
+            // លុបបានតែ record ចុងក្រោយ (សម្រាប់តែ Super Admin)
+            Route::delete('/{productStockMovement}', [ProductStockMovementController::class, 'destroy']);
+        });
+        // មុខងារបន្ថែមសម្រាប់ឆែកស្តុកតាមផលិតផលនីមួយៗ
         Route::get('products/{product}/stock', [ProductStockMovementController::class, 'productStock']);
 
-        // Product Series routes
-        Route::prefix('product-series')->group(function () {
-            Route::get('/', [ProductSeriesController::class, 'index']);
-            Route::post('/', [ProductSeriesController::class, 'store']);
-            Route::get('slug/{slug}', [ProductSeriesController::class, 'showBySlug']);
-            Route::patch('{productSeries}', [ProductSeriesController::class, 'update']);
-            Route::delete('{productSeries}', [ProductSeriesController::class, 'destroy']);
+        // Product Serials
+        Route::prefix('product-serials')->group(function () {
+            Route::get('/', [ProductSerialController::class, 'index']);
+            Route::get('/check/{serial_number}', [ProductSerialController::class, 'checkWarranty']);
         });
 
-        // Slideshow routes
+        // Slideshows
         Route::prefix('slideshows')->group(function () {
-            Route::get('/', [SlideshowController::class, 'index']);
-            Route::get('/active', [SlideshowController::class, 'active']);
-            Route::get('{slideshow}', [SlideshowController::class, 'show']);
-
-            Route::post('/', [SlideshowController::class, 'store']);
-            Route::patch('{slideshow}', [SlideshowController::class, 'update']);
-            Route::patch('reorder/all', [SlideshowController::class, 'reorder']);
-            Route::patch('{slideshow}/toggle', [SlideshowController::class, 'toggle']);
-
-            Route::delete('{slideshow}', [SlideshowController::class, 'destroy']);
+            Route::post('/reorder', [SlideshowController::class, 'reorder']);
+            Route::get('/', [SlideshowController::class, 'index']);      // មើលបញ្ជី Slide ទាំងអស់
+            Route::post('/', [SlideshowController::class, 'store']);     // បង្កើត Slide ថ្មី (Upload រូបភាព)
+            Route::put('/{id}', [SlideshowController::class, 'update']);  
+            Route::delete('/{id}', [SlideshowController::class, 'destroy']); // លុប Slide
+            Route::patch('/{id}/toggle-status', [SlideshowController::class, 'toggleStatus']);
         });
     });
 });

@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('email')->unique()->nullable();
             $table->text('address')->nullable();
             $table->boolean('status')->default(true); // active or inactive
+            $table->softDeletes();
             $table->timestamps();
         });
     }

@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
+
 
 class AuthController extends Controller
 {
@@ -21,25 +25,23 @@ class AuthController extends Controller
             'password' => 'required|string|min:8|confirmed',
         ]);
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'phone_number' => $request->phone_number,
-            'password' => $request->password, // auto-hased by cast
-            'role' => 'customer',
-            'provider' => 'local',
-        ]);
+        return DB::transaction(function () use ($request) {
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'phone_number' => $request->phone_number,
+                'password' => $request->password,
+                'role' => 'customer',
+            ]);
 
-        // auto create customer profile
-        $user->customerProfile()->create();
+            $token = $user->createToken('api_token')->plainTextToken;
 
-        $token = $user->createToken('api_token')->plainTextToken;
-
-        return response()->json([
-            'message' => 'Registration successful',
-            'user' => $user,
-            'token' => $token,
-        ], 201);
+            // ប្រើ sendResponse ពី Base Controller
+            return $this->sendResponse([
+                'user' => new UserResource($user->load('profile')),
+                'token' => $token
+            ], 'Registration successful.', 201);
+        });
     }
 
     // Login (email or phone)
@@ -50,43 +52,74 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
+        // បង្កើត Key សម្រាប់សម្គាល់ User តាមរយៈ IP ឬ Email
+        $throttleKey = 'login-attempts:' . $request->ip();
+
+        // ១. ឆែកមើលថា តើជាប់ប្លុក (Too many attempts) ឬទេ?
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $minutes = ceil($seconds / 60);
+
+            return $this->sendError(
+                "Too many login attempts. Please try again after {$minutes} " . ($minutes > 1 ? 'minutes' : 'minute') . ".",
+                ['retry_after_minutes' => $minutes],
+                429
+            );
+        }
+
         $user = User::where('email', $request->login)
             ->orWhere('phone_number', $request->login)
             ->first();
 
-        if (! $user || ! Hash::check($request->password, $user->password)) {
-            throw ValidationException::withMessages([
-                'login' => ['The provided credentials are incorrect.'],
-            ]);
+        // ការពារការទាយ Password និងការពារ Timing Attack
+        // ២. ឆែកព័ត៌មាន Login
+        if (!$user || !Hash::check($request->password, $user->password)) {
+
+            /** * ៣. បង្កើនចំនួនដងនៃការវាយខុស និងកំណត់រយៈពេលប្លុកឱ្យកើនឡើង (Backoff Logic)
+             * លើកទី១ ខុស: ប្លុកកើនតាមចំនួនដង (ឧទាហរណ៍: ខុសលើកទី៥ ប្លុក ៥នាទី)
+             */
+            $attempts = RateLimiter::attempts($throttleKey);
+            RateLimiter::hit($throttleKey, $decaySeconds = ($attempts + 1) * 60);
+
+            $remaining = 5 - RateLimiter::attempts($throttleKey);
+
+            return $this->sendError(
+                "Invalid credentials. You have " . max(0, $remaining) . " attempts remaining.",
+                ['attempts_left' => max(0, $remaining)],
+                422
+            );
+        }
+        // ៤. ឆែកស្ថានភាព Account
+        if (! $user->is_active) {
+            return $this->sendError('Your account is disabled. Please contact support.', [], 403);
         }
 
-        if (! $user->is_active) {
-            return response()->json([
-                'message' => 'Your account is disabled. Please contact support.'
-            ], 403);
-        }
+        // ៥. បើ Login ជោគជ័យ ត្រូវសម្អាត Cache នៃការព្យាយាមដែលធ្លាប់ខុសចេញ
+        RateLimiter::clear($throttleKey);
 
         $user->update(['last_login_at' => now()]);
-
         $token = $user->createToken('api_token')->plainTextToken;
 
-        return response()->json([
-            'message' => 'Login successful',
-            'user' => $user,
-            'token' => $token,
-        ], 200);
+        return $this->sendResponse([
+            'user' => new UserResource($user->load('profile')),
+            'token' => $token
+        ], 'Login successful.');
     }
 
     // Logout
     public function logout(Request $request)
     {
         $user = $request->user();
-        if ($user && $user->currentAccessToken()) {
-            $user->tokens()->where('id', $user->currentAccessToken()->id)->delete();
-            return response()->json(['message' => 'Logged out successfully']);
+        $token = $user->currentAccessToken();
+
+        if ($token) {
+            // លុប Token ដែលកំពុងប្រើប្រាស់បច្ចុប្បន្ន
+            $user->tokens()->where('id', $token->id)->delete();
+
+            return $this->sendResponse([], 'Logged out successfully.');
         }
 
-        return response()->json(['error' => 'Unauthenticated or no token found'], 401);
+        return $this->sendError('Unauthenticated or no token found.', [], 401);
     }
 
     public function changePassword(Request $request)
@@ -99,17 +132,11 @@ class AuthController extends Controller
         $user = $request->user();
 
         if (!Hash::check($request->current_password, $user->password)) {
-            return response()->json([
-                'message' => 'Current password is incorrect'
-            ], 422);
+            return $this->sendError('Current password is incorrect.', [], 422);
         }
 
-        $user->update([
-            'password' => Hash::make($request->new_password),
-        ]);
+        $user->update(['password' => $request->new_password]);
 
-        return response()->json([
-            'message' => 'Password updated successfully'
-        ]);
+        return $this->sendResponse([], 'Password updated successfully.');
     }
 }

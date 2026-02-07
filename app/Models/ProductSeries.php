@@ -9,36 +9,28 @@ use Illuminate\Support\Str;
 
 class ProductSeries extends Model
 {
-    use HasUuids, HasFactory;
+    use HasFactory, HasUuids;
 
-    public $incrementing = false;
-    protected $keyType = 'string';
+    protected $fillable = ['brand_id', 'name', 'slug', 'description', 'is_active'];
 
-    protected $fillable = [
-        'name',
-        'slug',
-        'description',
-        'is_active',
-    ];
-
-    protected function casts(): array
-    {
-        return [
-            'is_active' => 'boolean',
-        ];
-    }
-
-
+    /**
+     * ការកំណត់ Auto-Generate Slug នៅពេល Save
+     */
     protected static function booted()
     {
         static::saving(function ($series) {
-            if ($series->isDirty('name')) {
+            // បង្កើត slug តែនៅពេលដែល name មានការប្រែប្រួល ឬ slug នៅទទេ
+            if ($series->isDirty('name') || !$series->slug) {
                 $slug = Str::slug($series->name);
-                $count = static::where('slug', 'like', "{$slug}%")
-                    ->where('id', '!=', $series->id)
-                    ->count();
 
-                $series->slug = $count ? "{$slug}-" . ($count + 1) : $slug;
+                // ឆែកមើលក្រែងលោមាន slug ជាន់គ្នា (បើសិនជាមាន វានឹងថែមលេខពីក្រោយ)
+                $originalSlug = $slug;
+                $count = 1;
+                while (static::where('slug', $slug)->where('id', '!=', $series->id)->exists()) {
+                    $slug = $originalSlug . '-' . $count++;
+                }
+
+                $series->slug = $slug;
             }
         });
     }
@@ -51,5 +43,11 @@ class ProductSeries extends Model
     public function slideshows()
     {
         return $this->hasMany(Slideshow::class);
+    }
+
+    // បន្ថែម Brand Relation បើសិនជាអ្នកមាន Table Brands
+    public function brand()
+    {
+        return $this->belongsTo(Brand::class);
     }
 }

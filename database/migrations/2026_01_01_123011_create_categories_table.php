@@ -22,14 +22,11 @@ return new class extends Migration
 
             $table->index('parent_id');
             $table->index('is_active');
-        });
 
-        // ✅ Add foreign key AFTER table creation (PostgreSQL safe)
-        Schema::table('categories', function (Blueprint $table) {
             $table->foreign('parent_id')
                 ->references('id')
                 ->on('categories')
-                ->nullOnDelete(); // safer than cascade
+                ->nullOnDelete();
         });
     }
 

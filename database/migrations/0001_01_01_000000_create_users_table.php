@@ -21,7 +21,8 @@ return new class extends Migration
             $table->timestamp('phone_verified_at')->nullable();
             $table->enum('role', ['admin', 'customer'])->default('customer');
             $table->enum('provider', ['local', 'google'])->default('local');
-            $table->string('provider_id')->nullable();
+            $table->string('provider_id')->nullable()->unique();
+            $table->softDeletes();
             $table->boolean('is_active')->default(true);
             $table->timestamp('last_login_at')->nullable();
             $table->rememberToken();

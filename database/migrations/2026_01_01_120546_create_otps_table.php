@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('otps', function (Blueprint $table) {
             $table->uuid('id')->primary(); // secure UUID
-            $table->uuid('user_id'); // Foreign key to users table
+            $table->uuid('user_id')->nullable(); // Foreign key to users table
             $table->enum('contact_type', ['email', 'phone']);
             $table->string('contact_value', 255);
             $table->string('otp_hash', 255);

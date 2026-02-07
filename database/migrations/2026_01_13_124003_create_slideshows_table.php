@@ -13,16 +13,13 @@ return new class extends Migration
     {
         Schema::create('slideshows', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->uuid('product_series_id')->nullable(); // FK to product_series.id
-            $table->string('image');
+            $table->uuid('product_series_id')->nullable();
+            $table->string('image_path');
             $table->integer('position')->default(0);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
 
-            $table->foreign('product_series_id')
-                ->references('id')
-                ->on('product_series')
-                ->nullOnDelete();
+            $table->foreign('product_series_id')->references('id')->on('product_series')->nullOnDelete();
         });
     }
 

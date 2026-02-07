@@ -16,9 +16,11 @@ class ProductStockMovement extends Model
     protected $fillable = [
         'product_id',
         'supplier_id',
+        'reference_number',
         'type',
         'quantity',
         'cost_price',
+        'balance_after',
         'note',
     ];
 

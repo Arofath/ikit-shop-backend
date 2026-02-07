@@ -28,6 +28,17 @@ class Category extends Model
         ];
     }
 
+    // ក្នុង Category Model
+    public function scopeOnlyParent($query)
+    {
+        return $query->whereNull('parent_id');
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
     public function parent()
     {
         return $this->belongsTo(Category::class, 'parent_id');
@@ -35,7 +46,8 @@ class Category extends Model
 
     public function children()
     {
-        return $this->hasMany(Category::class, 'parent_id');
+        return $this->hasMany(Category::class, 'parent_id')->with('children');
+        // ថែម with('children') ដើម្បីទាញយកមកគ្រប់ជាន់ (Nested)
     }
 
     public function products()

@@ -11,13 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('product_series', function (Blueprint $table) {
+        Schema::create('carts', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('name');
-            $table->string('slug')->unique();
-            $table->text('description')->nullable();
-            $table->boolean('is_active')->default(true);
+            $table->uuid('user_id')->unique(); // ម្នាក់មានកន្ត្រកតែមួយ
             $table->timestamps();
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
         });
     }
 
@@ -26,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('product_series');
+        Schema::dropIfExists('carts');
     }
 };

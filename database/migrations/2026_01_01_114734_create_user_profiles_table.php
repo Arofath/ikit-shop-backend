@@ -11,9 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('customer_profiles', function (Blueprint $table) {
+        Schema::create('user_profiles', function (Blueprint $table) {
             $table->id();
-            $table->uuid('user_id'); // Foreign key to users table
+            $table->uuid('user_id')->unique(); // Foreign key to users table
             $table->string('profile_image')->nullable();
             $table->enum('gender', ['male', 'female', 'other'])->nullable();
             $table->timestamps();
@@ -28,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('customer_profiles');
+        Schema::dropIfExists('user_profiles');
     }
 };

@@ -32,6 +32,12 @@ class ProductImage extends Model
     {
         return $this->belongsTo(Product::class);
     }
+
+    // Scope សម្រាប់ងាយស្រួលទាញយករូប Thumbnail
+    public function scopeThumbnail($query)
+    {
+        return $query->where('is_thumbnail', true);
+    }
 }
 
 

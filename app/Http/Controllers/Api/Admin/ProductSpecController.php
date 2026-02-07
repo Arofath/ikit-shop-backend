@@ -6,83 +6,38 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductSpec;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use App\Http\Resources\ProductSpecResource;
 
 class ProductSpecController extends Controller
 {
-    // List specs (grouped)
-    public function index(Product $product)
-    {
-        $specs = $product->specs()
-            ->orderBy('spec_group')
-            ->orderBy('spec_key')
-            ->get();
-
-        return response()->json([
-            'success' => true,
-            'data' => $specs,
-        ]);
-    }
-
-    // Store new spec
-    public function store(Request $request, Product $product)
+    /**
+     * Sync ព័ត៌មានបច្ចេកទេសទាំងអស់របស់ Product
+     */
+    public function sync(Request $request, Product $product)
     {
         $request->validate([
-            'specs' => 'required|array',
+            'specs'              => 'present|array',
             'specs.*.spec_group' => 'required|string|max:100',
             'specs.*.spec_key'   => 'required|string|max:100',
             'specs.*.spec_value' => 'required|string',
+            'specs.*.sort_order' => 'nullable|integer',
         ]);
 
-        $createdSpecs = [];
+        return DB::transaction(function () use ($request, $product) {
+            // ១. លុប Specs ចាស់ៗរបស់ផលិតផលនេះចោលទាំងអស់
+            $product->specs()->delete();
 
-        foreach ($request->specs as $spec) {
-            $createdSpecs[] = ProductSpec::create([
-                'product_id' => $product->id,
-                'spec_group' => $spec['spec_group'],
-                'spec_key'   => $spec['spec_key'],
-                'spec_value' => $spec['spec_value'],
-            ]);
-        }
+            // ២. បញ្ចូល Specs ថ្មីដែលផ្ញើមកពី Frontend
+            if (!empty($request->specs)) {
+                $product->specs()->createMany($request->specs);
+            }
 
-        return response()->json([
-            'message' => 'Specifications added successfully',
-            'data' => $createdSpecs
-        ], 201);
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, ProductSpec $spec)
-    {
-        $request->validate([
-            'spec_group' => 'sometimes|string|max:100',
-            'spec_key'   => 'sometimes|string|max:100',
-            'spec_value' => 'sometimes|string',
-        ]);
-
-        $spec->update($request->only([
-            'spec_group',
-            'spec_key',
-            'spec_value',
-        ]));
-
-        return response()->json([
-            'message' => 'Specification updated successfully',
-            'data' => $spec->fresh(), // 🔥 IMPORTANT
-        ]);
-    }
-
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(ProductSpec $spec)
-    {
-        $spec->delete();
-
-        return response()->json([
-            'message' => 'Specification deleted successfully',
-        ]);
+            // ផ្ញើទិន្នន័យដែលទើបនឹង Sync រួចទៅឱ្យ Frontend វិញ
+            return $this->sendResponse(
+                ProductSpecResource::collection($product->specs()->orderBy('sort_order')->get()),
+                'Product specifications synced successfully.'
+            );
+        });
     }
 }
