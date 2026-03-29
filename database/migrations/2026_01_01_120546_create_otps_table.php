@@ -12,9 +12,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('otps', function (Blueprint $table) {
-            $table->uuid('id')->primary(); // secure UUID
-            $table->uuid('user_id')->nullable(); // Foreign key to users table
-            $table->enum('contact_type', ['email', 'phone']);
+            $table->uuid('id')->primary();
+
+            // Flow ទី១ គឺត្រូវតែមាន User មុនទើបមាន OTP ដូច្នេះលែងត្រូវការ nullable() ទៀតហើយ
+            $table->uuid('user_id');
+
+            // រក្សាទុកដដែល ដើម្បីភាពងាយស្រួលថ្ងៃមុខ
+            $table->enum('contact_type', ['email', 'phone'])->default('email');
             $table->string('contact_value', 255);
             $table->string('otp_hash', 255);
             $table->enum('purpose', ['register', 'login', 'password_reset', 'verify']);
@@ -23,19 +27,18 @@ return new class extends Migration
             $table->integer('attempts')->default(0);
             $table->timestamps();
 
-            // Indexes (Important for performance)
+            // Indexes 
             $table->index(['contact_type', 'contact_value']);
             $table->index(['user_id', 'purpose']);
             $table->index('expires_at');
 
-            // Foreign key constraint
+            // Foreign key constraint ប្រើ cascade ល្អបំផុតការពារកុំឱ្យសល់ទិន្នន័យសំរាម
             $table->foreign('user_id')
                 ->references('id')
                 ->on('users')
-                ->nullOnDelete(); // safer than cascade for OTP
+                ->cascadeOnDelete();
         });
     }
-
     /**
      * Reverse the migrations.
      */

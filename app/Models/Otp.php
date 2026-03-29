@@ -33,6 +33,10 @@ class Otp extends Model
         ];
     }
 
+    protected $hidden = [
+        'otp_hash',
+    ];
+
     public function user()
     {
         return $this->belongsTo(User::class);

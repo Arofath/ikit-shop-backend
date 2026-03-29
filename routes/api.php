@@ -1,6 +1,5 @@
 <?php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\AuthController;
@@ -26,6 +25,9 @@ use App\Http\Controllers\Api\Admin\{
 Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('throttle:10,1')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
+    Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
+    Route::post('/verify-admin-login', [AuthController::class, 'verifyAdminLogin']);
 });
 
 Route::prefix('products')->group(function () {
