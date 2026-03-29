@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\RateLimiter;
 
 class AuthController extends Controller
 {
+    private const OTP_EXPIRY_MINUTES = 5;
+    private const OTP_EXPIRY_TEXT = '5 minutes';
     // ==========================================
     // 🛠 PRIVATE HELPER METHODS (ដោះស្រាយបញ្ហា Duplication)
     // ==========================================
@@ -24,13 +26,11 @@ class AuthController extends Controller
      */
     private function generateAndSaveOtp(User $user, string $purpose): string
     {
-        // បិទកូដចាស់ៗដែលមិនទាន់ប្រើ
         $user->otps()
             ->where('purpose', $purpose)
             ->where('is_used', false)
             ->update(['is_used' => true]);
 
-        // បង្កើតកូដថ្មី
         $otpCode = (string) random_int(100000, 999999);
 
         $user->otps()->create([
@@ -38,7 +38,8 @@ class AuthController extends Controller
             'contact_value' => $user->email,
             'otp_hash' => Hash::make($otpCode),
             'purpose' => $purpose,
-            'expires_at' => now()->addMinutes(5),
+            // ប្រើ Constant នៅទីនេះ
+            'expires_at' => now()->addMinutes(self::OTP_EXPIRY_MINUTES),
         ]);
 
         return $otpCode;
@@ -56,22 +57,25 @@ class AuthController extends Controller
             ->latest()
             ->first();
 
+        // ច្រកចេញទី ១៖ បើគ្មាន OTP ទាល់តែសោះ
         if (!$otp) {
             return ['isValid' => false, 'message' => 'OTP code is invalid or has expired.', 'status' => 400];
         }
 
+        $errorResult = null; // អថេរសម្រាប់ផ្ទុក Error បើមាន
+
+        // ចងលក្ខខណ្ឌដែលនៅសល់ចូលគ្នា
         if ($otp->attempts >= 5) {
             $otp->update(['is_used' => true]);
-            return ['isValid' => false, 'message' => 'Too many failed attempts. This OTP has been invalidated.', 'status' => 429];
-        }
-
-        if (!Hash::check($otpCode, $otp->otp_hash)) {
+            $errorResult = ['isValid' => false, 'message' => 'Too many failed attempts. This OTP has been invalidated.', 'status' => 429];
+        } elseif (!Hash::check($otpCode, $otp->otp_hash)) {
             $otp->increment('attempts');
             $attemptsLeft = 5 - $otp->attempts;
-            return ['isValid' => false, 'message' => "Invalid OTP code. You have {$attemptsLeft} attempts left.", 'status' => 400];
+            $errorResult = ['isValid' => false, 'message' => "Invalid OTP code. You have {$attemptsLeft} attempts left.", 'status' => 400];
         }
 
-        return ['isValid' => true, 'otp' => $otp];
+        // ច្រកចេញទី ២៖ បើមាន Error វានឹង Return Error, បើអត់ទេ វានឹង Return ជោគជ័យ
+        return $errorResult ?? ['isValid' => true, 'otp' => $otp];
     }
 
     // ==========================================
@@ -120,7 +124,7 @@ class AuthController extends Controller
                 'data' => [
                     'user_id' => $user->id,
                     'email' => $user->email,
-                    'expires_in' => '5 minutes'
+                    'expires_in' => self::OTP_EXPIRY_TEXT
                 ]
             ], 201);
         });
@@ -192,7 +196,7 @@ class AuthController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Admin credentials verified. OTP is required.',
-                'data' => ['requires_2fa' => true, 'email' => $user->email, 'expires_in' => '5 minutes']
+                'data' => ['requires_2fa' => true, 'email' => $user->email, 'expires_in' => self::OTP_EXPIRY_TEXT]
             ], 200);
         }
 
@@ -292,7 +296,7 @@ class AuthController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'A new OTP has been sent.',
-                'data' => ['expires_in' => '5 minutes']
+                'data' => ['expires_in' => self::OTP_EXPIRY_TEXT]
             ], 200);
         });
     }
