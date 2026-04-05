@@ -2,13 +2,17 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Warranty extends Model
 {
     use HasFactory, HasUuids;
+
+    // 🌟 បន្ថែម ២ បន្ទាត់នេះដាច់ខាតសម្រាប់ UUID
+    public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'name',
@@ -18,15 +22,15 @@ class Warranty extends Model
         'is_active',
     ];
 
-    protected $casts = [
-        'duration_months' => 'integer',
-        'is_active'       => 'boolean',
-    ];
+    // 🌟 ប្តូរមកប្រើ Method តាមស្តង់ដារ Laravel ថ្មី
+    protected function casts(): array
+    {
+        return [
+            'duration_months' => 'integer',
+            'is_active'       => 'boolean',
+        ];
+    }
 
-    /**
-     * ទំនាក់ទំនងជាមួយ Product
-     * (Product មួយអាចមានកិច្ចសន្យាធានាមួយ)
-     */
     public function products()
     {
         return $this->hasMany(Product::class);

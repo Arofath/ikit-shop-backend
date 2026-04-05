@@ -5,12 +5,12 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductStockMovement;
+use App\Models\ProductSerial;
+use App\Http\Resources\ProductStockMovementResource;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
-use App\Http\Resources\ProductStockMovementResource;
-use App\Models\ProductSerial;
-
+use Illuminate\Support\Str;
 
 class ProductStockMovementController extends Controller
 {
@@ -27,7 +27,7 @@ class ProductStockMovementController extends Controller
             $query->where('type', $request->type);
         }
 
-        $movements = $query->latest()->paginate($request->limit ?? 15);
+        $movements = $query->latest()->paginate($request->get('limit', 15));
 
         return $this->sendResponse(
             ProductStockMovementResource::collection($movements)->response()->getData(true),
@@ -50,58 +50,79 @@ class ProductStockMovementController extends Controller
             'serials.*'        => 'string|distinct',
         ]);
 
+        // 🌟 ១. ឆែកមើលចំនួន Quantity និងចំនួន Serial ត្រូវតែស្មើគ្នា
+        if (in_array($data['type'], ['IN', 'OUT'])) {
+            if (count($data['serials']) !== (int) $data['quantity']) {
+                return $this->sendError('Validation Error.', ['The number of serials must exactly match the quantity.'], 422);
+            }
+        }
+
+        // 🌟 ២. ប្រើប្រាស់ DB::beginTransaction() ផ្ទាល់ ដើម្បីអាចទប់ស្កាត់ (Rollback) និង Return Error Code តាមចិត្ត
+        DB::beginTransaction();
+
         try {
-            return DB::transaction(function () use ($data, $request) {
-                $product = Product::findOrFail($data['product_id']);
-                $currentStock = $this->calculateStock($product->id);
+            $product = Product::findOrFail($data['product_id']);
+            $currentStock = $this->calculateStock($product->id);
 
-                // ១. ឆែកលក្ខខណ្ឌពេលលក់ចេញ (OUT)
-                if ($data['type'] === 'OUT') {
-                    if ($currentStock < $data['quantity']) {
-                        return $this->sendError('Stock insufficient.', ["Current available: {$currentStock}"], 422);
-                    }
-
-                    // ឆែកមើលថា តើ Serial ដែលចង់លក់មានក្នុងស្តុកពិតមែនឬអត់
-                    $validSerials = ProductSerial::whereIn('serial_number', $data['serials'])
-                        ->where('product_id', $product->id)
-                        ->where('status', 'AVAILABLE')
-                        ->count();
-
-                    if ($validSerials !== count($data['serials'])) {
-                        return $this->sendError('Some serial numbers are invalid or already sold.', [], 422);
-                    }
+            // ឆែកលក្ខខណ្ឌពេលលក់ចេញ (OUT)
+            if ($data['type'] === 'OUT') {
+                if ($currentStock < $data['quantity']) {
+                    DB::rollBack();
+                    return $this->sendError('Stock insufficient.', ["Current available: {$currentStock}"], 422);
                 }
 
-                // ២. បង្កើត Stock Movement Record
-                $change = ($data['type'] === 'OUT') ? -$data['quantity'] : $data['quantity'];
-                $data['balance_after'] = $currentStock + $change;
-                $movement = ProductStockMovement::create($data);
+                $validSerials = ProductSerial::whereIn('serial_number', $data['serials'])
+                    ->where('product_id', $product->id)
+                    ->where('status', 'AVAILABLE')
+                    ->count();
 
-                // ៣. ចាត់ចែង Serial Numbers តាមប្រភេទប្រតិបត្តិការ
-                if ($data['type'] === 'IN') {
-                    foreach ($data['serials'] as $sn) {
-                        ProductSerial::create([
-                            'product_id'          => $product->id,
-                            'initial_movement_id' => $movement->id,
-                            'serial_number'       => $sn,
-                            'status'              => 'AVAILABLE',
-                        ]);
-                    }
-                } elseif ($data['type'] === 'OUT') {
-                    ProductSerial::whereIn('serial_number', $data['serials'])
-                        ->update([
-                            'status'           => 'SOLD',
-                            'sold_movement_id' => $movement->id
-                        ]);
+                if ($validSerials !== count($data['serials'])) {
+                    DB::rollBack();
+                    return $this->sendError('Some serial numbers are invalid or already sold.', [], 422);
                 }
+            }
 
-                return $this->sendResponse(
-                    new ProductStockMovementResource($movement),
-                    'Stock and Serial Numbers recorded successfully.'
-                );
-            });
+            // បង្កើត Stock Movement Record
+            $change = ($data['type'] === 'OUT') ? -$data['quantity'] : $data['quantity'];
+            $data['balance_after'] = $currentStock + $change;
+
+            $movement = ProductStockMovement::create($data);
+
+            // ចាត់ចែង Serial Numbers
+            if ($data['type'] === 'IN') {
+                $serialData = [];
+                foreach ($data['serials'] as $sn) {
+                    $serialData[] = [
+                        'id'                  => (string) Str::uuid(),
+                        'product_id'          => $product->id,
+                        'initial_movement_id' => $movement->id,
+                        'serial_number'       => $sn,
+                        'status'              => 'AVAILABLE',
+                        'created_at'          => now(),
+                        'updated_at'          => now(),
+                    ];
+                }
+                ProductSerial::insert($serialData); // ប្រើ insert ជំនួស create កាត់បន្ថយ Query ឱ្យនៅតែ ១
+
+            } elseif ($data['type'] === 'OUT') {
+                ProductSerial::whereIn('serial_number', $data['serials'])
+                    ->where('product_id', $product->id)
+                    ->update([
+                        'status'           => 'SOLD',
+                        'sold_movement_id' => $movement->id
+                    ]);
+            }
+
+            DB::commit(); // 🌟 ប្រសិនបើគ្មាន Error ទេ ទើបអនុម័តទិន្នន័យ
+
+            return $this->sendResponse(
+                new ProductStockMovementResource($movement),
+                'Stock and Serial Numbers recorded successfully.',
+                201
+            );
         } catch (\Exception $e) {
-            return $this->sendError('Transaction Failed', [$e->getMessage()], 500);
+            DB::rollBack();
+            return $this->sendError('Transaction Failed.', [$e->getMessage()], 500);
         }
     }
 
@@ -111,51 +132,71 @@ class ProductStockMovementController extends Controller
         $movement = ProductStockMovement::with(['product', 'supplier'])->findOrFail($id);
         return $this->sendResponse(new ProductStockMovementResource($movement), 'Stock movement retrieved.');
     }
-    
 
     // ៤. លុប (បានតែ Record ចុងក្រោយ)
-    public function destroy(ProductStockMovement $productStockMovement)
+    public function destroy(string $id)
     {
-        // Algorithm: ឆែកមើលថាវាជា Record ចុងក្រោយរបស់ Product នោះឬអត់
-        $isLatest = !ProductStockMovement::where('product_id', $productStockMovement->product_id)
-            ->where('created_at', '>', $productStockMovement->created_at)
+        $movement = ProductStockMovement::findOrFail($id);
+
+        $isLatest = !ProductStockMovement::where('product_id', $movement->product_id)
+            ->where('created_at', '>', $movement->created_at)
             ->exists();
 
         if (!$isLatest) {
             return $this->sendError('Action Denied.', ['Only the latest record can be deleted to maintain balance integrity.'], 403);
         }
 
-        $productStockMovement->delete();
+        DB::beginTransaction();
+        try {
+            // 🌟 ត្រូវកែប្រែ Serial មុននឹងលុប Movement
+            if ($movement->type === 'IN') {
+                // បើលុបស្តុកទិញចូល ត្រូវលុប Serial ដែលចូលមកពេលនោះចោលវិញ
+                ProductSerial::where('initial_movement_id', $movement->id)->delete();
+            } elseif ($movement->type === 'OUT') {
+                // បើលុបស្តុកលក់ចេញ ត្រូវប្រគល់ Serial នោះឱ្យទំនេរវិញ
+                ProductSerial::where('sold_movement_id', $movement->id)->update([
+                    'status' => 'AVAILABLE',
+                    'sold_movement_id' => null
+                ]);
+            }
 
-        return $this->sendResponse([], 'Stock movement deleted successfully.');
+            $movement->delete();
+
+            DB::commit();
+            return $this->sendResponse([], 'Stock movement deleted successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->sendError('Deletion Failed.', [$e->getMessage()], 500);
+        }
     }
 
-    // ៥. មុខងារពិសេស៖ របាយការណ៍សង្ខេប (Stock Summary Report)
+    // ៥. មុខងារពិសេស៖ របាយការណ៍សង្ខេប (Stock Summary Report) - 🌟 Optimized ខ្លាំងបំផុត
     public function stockReport()
     {
-        // ឧទាហរណ៍៖ ទាញយកផលិតផលដែលជិតអស់ពីស្តុក (Low Stock)
-        $lowStock = Product::whereHas('stockMovements')
-            ->get()
-            ->filter(function ($product) {
-                return $product->current_stock <= 5;
-            });
+        // ប្រើប្រាស់ Subquery នៅក្នុង Database ផ្ទាល់ កាត់បន្ថយ N+1 Query
+        $lowStockProducts = Product::select('products.*')
+            ->selectSub(function ($query) {
+                $query->selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0)")
+                    ->from('product_stock_movements')
+                    ->whereColumn('product_stock_movements.product_id', 'products.id');
+            }, 'current_stock')
+            ->having('current_stock', '<=', 5)
+            ->with(['category', 'brand']) // ភ្ជាប់មកជាមួយបើចាំបាច់
+            ->get();
 
-        return response()->json([
-            'success' => true,
-            'low_stock_items' => $lowStock
-        ]);
+        return $this->sendResponse([
+            'low_stock_items' => $lowStockProducts
+        ], 'Stock report retrieved.');
     }
 
+    // Helper Method សម្រាប់គណនាស្តុក (រក្សាទុកដដែល)
     private function calculateStock($productId)
     {
         return ProductStockMovement::where('product_id', $productId)
             ->selectRaw("SUM(CASE 
-            WHEN type = 'IN' THEN quantity 
+            WHEN type IN ('IN', 'ADJUST') THEN quantity 
             WHEN type = 'OUT' THEN -quantity 
-            WHEN type = 'ADJUST' THEN quantity 
             ELSE 0 END) as total")
             ->value('total') ?? 0;
     }
 }
-
-//រៀបចំកូដក្នុង Model Product ដើម្បីឱ្យវាអាចហៅ $product->current_stock ដែរ

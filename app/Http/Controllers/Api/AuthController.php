@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
-
+use App\Http\Resources\UserResource;
 
 class AuthController extends Controller
 {
@@ -109,24 +109,25 @@ class AuthController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Local Testing: Registration successful & OTP Bypassed.',
-                    'data' => ['user' => $user, 'token' => $token]
-                ], 201);
+                    'message' => 'Local Testing: Admin 2FA Bypassed. Login successful.',
+                    'data' => [
+                        // 🌟 ប្រើ UserResource 
+                        'user' => new UserResource($user->load('profile')),
+                        'token' => $token
+                    ]
+                ], 200);
             }
 
             // ហៅប្រើ Helper Method ជំនួសឱ្យការសរសេរកូដឡើងវិញ
             $otpCode = $this->generateAndSaveOtp($user, 'register');
             Mail::to($user->email)->send(new RegisterOtpMail($otpCode));
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Registration successful. Please check your email for the OTP code.',
-                'data' => [
-                    'user_id' => $user->id,
-                    'email' => $user->email,
-                    'expires_in' => self::OTP_EXPIRY_TEXT
-                ]
-            ], 201);
+            $data = [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'expires_in' => self::OTP_EXPIRY_TEXT
+            ];
+            return $this->sendResponse($data, 'Registration successful. Please check your email for the OTP code.', 201);
         });
     }
 
@@ -141,11 +142,11 @@ class AuthController extends Controller
 
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $minutes = ceil(RateLimiter::availableIn($throttleKey) / 60);
-            return response()->json([
-                'success' => false,
-                'message' => "Too many login attempts. Please try again after {$minutes} " . ($minutes > 1 ? 'minutes' : 'minute') . ".",
-                'data' => ['retry_after_minutes' => $minutes]
-            ], 429);
+            return $this->sendError(
+                "Too many login attempts. Please try again after {$minutes} minutes.", 
+                ['retry_after_minutes' => $minutes], 
+                429
+            );
         }
 
         $user = User::where('email', $request->email)->first();
@@ -166,7 +167,7 @@ class AuthController extends Controller
             return response()->json(['success' => false, 'message' => 'Your account is disabled.'], 403);
         }
 
-        if ($user->email_verified_at === null) {
+        if ($user->email_verified_at === null && $user->role !== 'admin') {
             return response()->json([
                 'success' => false,
                 'message' => 'Your email address is not verified. Please verify your email before logging in.',
@@ -185,7 +186,8 @@ class AuthController extends Controller
                 return response()->json([
                     'success' => true,
                     'message' => 'Local Testing: Admin 2FA Bypassed. Login successful.',
-                    'data' => ['user' => $user->load('profile'), 'token' => $token]
+                    // 🌟 ប្រើ UserResource 
+                    'data' => ['user' => new UserResource($user->load('profile')), 'token' => $token]
                 ], 200);
             }
 
@@ -202,11 +204,11 @@ class AuthController extends Controller
 
         $token = $user->createToken('api_token')->plainTextToken;
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Login successful.',
-            'data' => ['user' => $user->load('profile'), 'token' => $token]
-        ], 200);
+        $data = [
+            'user' => new UserResource($user->load('profile')),
+            'token' => $token
+        ];
+        return $this->sendResponse($data, 'Login successful.', 200);
     }
 
     public function verifyAdminLogin(Request $request)
@@ -230,13 +232,20 @@ class AuthController extends Controller
 
         return DB::transaction(function () use ($user, $validation) {
             $validation['otp']->update(['is_used' => true]);
-            $token = $user->createToken('admin_api_token')->plainTextToken;
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Admin 2FA verified successfully.',
-                'data' => ['user' => $user->load('profile'), 'token' => $token]
-            ], 200);
+            // ==========================================
+            // 🌟 បន្ថែមថ្មី៖ បើ Admin មិនទាន់ Verify Email ទេ យើង Update ឱ្យគាត់តែម្តង
+            // ==========================================
+            if ($user->email_verified_at === null) {
+                $user->update(['email_verified_at' => now()]);
+            }
+
+            $token = $user->createToken('admin_api_token')->plainTextToken;
+            $data = [
+                'user' => new UserResource($user->load('profile')),
+                'token' => $token
+            ];
+            return $this->sendResponse($data, 'Admin 2FA verified successfully.', 200);
         });
     }
 
@@ -260,11 +269,11 @@ class AuthController extends Controller
             $user->update(['email_verified_at' => now()]);
             $token = $user->createToken('api_token')->plainTextToken;
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Account verified successfully.',
-                'data' => ['user' => $user, 'token' => $token]
-            ], 200);
+            $data = [
+                'user' => new UserResource($user->load('profile')),
+                'token' => $token
+            ];
+            return $this->sendResponse($data, 'Account verified successfully.', 200);
         });
     }
 
@@ -298,6 +307,7 @@ class AuthController extends Controller
                 'message' => 'A new OTP has been sent.',
                 'data' => ['expires_in' => self::OTP_EXPIRY_TEXT]
             ], 200);
+            
         });
     }
 
@@ -308,10 +318,10 @@ class AuthController extends Controller
 
         if ($token) {
             $user->tokens()->where('id', $token->id)->delete();
-            return response()->json(['success' => true, 'message' => 'Logged out successfully.'], 200);
+            return $this->sendResponse(null, 'Logged out successfully.', 200);
         }
 
-        return response()->json(['success' => false, 'message' => 'Unauthenticated or no token found.'], 401);
+        return $this->sendError('Unauthenticated or no token found.', [], 401);
     }
 
     public function changePassword(Request $request)

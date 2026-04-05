@@ -72,11 +72,16 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         // Simplified Resources
         // Categories
         Route::apiResource('categories', CategoryController::class);
+        Route::post('categories/{category}/upload-image', [CategoryController::class, 'uploadImage']);
         // Brands
         Route::apiResource('brands', BrandController::class);
+        Route::post('brands/{brand}/upload-logo', [BrandController::class, 'uploadLogo']);
 
         // Suppliers
         Route::delete('suppliers/{supplier}', [SupplierController::class, 'destroy']);
+        Route::get('suppliers/trash', [SupplierController::class, 'trash']);
+        Route::post('suppliers/{id}/restore', [SupplierController::class, 'restore']);
+        Route::delete('suppliers/{id}/force', [SupplierController::class, 'forceDelete']);
         Route::apiResource('suppliers', SupplierController::class)->except(['destroy']);
 
         // Warranties
@@ -130,7 +135,8 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         // Product Serials
         Route::prefix('product-serials')->group(function () {
             Route::get('/', [ProductSerialController::class, 'index']);
-            Route::get('/check/{serial_number}', [ProductSerialController::class, 'checkWarranty']);
+            Route::get('/check-warranty/{serial_number}', [ProductSerialController::class, 'checkWarranty']);
+            Route::patch('/{id}/status', [ProductSerialController::class, 'updateStatus']);
         });
 
         // Slideshows

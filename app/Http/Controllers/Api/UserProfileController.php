@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
+use App\Services\CloudinaryStorageService;
 use Illuminate\Http\Request;
-use App\Services\SupabaseStorageService;
 use Illuminate\Support\Facades\DB;
 
 class UserProfileController extends Controller
@@ -14,20 +14,27 @@ class UserProfileController extends Controller
     public function show(Request $request)
     {
         $user = $request->user()->load('profile');
-        // ហៅប្រើ function ពី Base Controller
-        return $this->sendResponse(new UserResource($user), 'Profile fetched successfully.');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile fetched successfully.',
+            'data'    => new UserResource($user)
+        ], 200);
     }
 
     // Update user profile
     public function update(Request $request)
     {
         $request->validate([
-            'name' => 'nullable|string|max:255',
-            'gender' => 'nullable|in:male,female,other',
+            'name'          => 'nullable|string|max:255',
+            'gender'        => 'nullable|in:male,female,other',
+            'date_of_birth' => 'nullable|date',
+            'address'       => 'nullable|string|max:500',
+            'position'      => 'nullable|string|max:100',
+            'bio'           => 'nullable|string|max:1000',
         ]);
 
         $user = $request->user();
-        // បង្ការករណីបាត់ Profile (ឧទាហរណ៍ Admin ចាស់ដែលមិនទាន់មាន row ក្នុង DB)
         $profile = $user->profile()->firstOrCreate([]);
 
         try {
@@ -35,43 +42,77 @@ class UserProfileController extends Controller
                 if ($request->filled('name')) {
                     $user->update(['name' => $request->name]);
                 }
-                $profile->update($request->only('gender'));
+
+                // Update profile ជាមួយ field ទាំងអស់
+                $profile->update($request->only([
+                    'gender',
+                    'date_of_birth',
+                    'address',
+                    'position',
+                    'bio'
+                ]));
             });
 
-            return $this->sendResponse(new UserResource($user->fresh('profile')), 'Profile updated successfully.');
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile updated successfully.',
+                'data'    => new UserResource($user->fresh('profile'))
+            ], 200);
         } catch (\Exception $e) {
-            return $this->sendError('Update failed.', ['error' => $e->getMessage()], 500);
+            return response()->json([
+                'success' => false,
+                'message' => 'Update failed.',
+                'errors'  => app()->environment('local') ? ['error' => $e->getMessage()] : []
+            ], 500);
         }
-        
     }
 
-    public function uploadImage(Request $request, SupabaseStorageService $storage)
+    public function uploadImage(Request $request, CloudinaryStorageService $storage)
     {
+        set_time_limit(120);
+
         $request->validate([
-            'image' => 'required|image|max:2048',
+            'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
 
         $user = $request->user();
         $profile = $user->profile()->firstOrCreate([]);
 
-        $publicUrl = $storage->uploadImage(
-            file: $request->file('image'),
-            bucket: config('services.supabase.bucket_avatar'),
-            oldImageUrl: $profile->profile_image,
-            prefix: 'profiles/' . $user->id // រៀបចំ folder ក្នុង storage ឱ្យមានរបៀប
-        );
+        try {
+            // កំណត់ទំហំសម្រាប់តែ Profile
+            $profileTransformations = [
+                'width' => 500,
+                'height' => 500,
+                'crop' => 'fill',
+                'gravity' => 'face',
+                'quality' => 'auto:best',
+                'fetch_format' => 'auto'
+            ];
 
-        // save to DB
-        $profile->update([
-            'profile_image' => $publicUrl,
-        ]);
+            // 🌟 ហៅ Service មកប្រើ ត្រឹមតែ ១ បន្ទាត់!
+            $publicUrl = $storage->uploadImage(
+                file: $request->file('image'),
+                folder: 'profiles',
+                oldImageUrl: $profile->profile_image,
+                transformations: $profileTransformations
+            );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Profile image uploaded successfully',
-            'data'    => [
-                'profile_image' => $publicUrl
-            ],
-        ]);
+            // រក្សាទុក URL ចូល Database
+            $profile->update([
+                'profile_image' => $publicUrl,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile image uploaded and optimized successfully.',
+                'data'    => new UserResource($user->fresh('profile')),
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Image upload failed.',
+                'errors'  => app()->environment('local') ? ['error' => $e->getMessage()] : []
+            ], 500);
+        }
     }
 }

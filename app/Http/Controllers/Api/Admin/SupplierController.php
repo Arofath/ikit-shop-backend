@@ -4,40 +4,35 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Supplier;
+use App\Http\Resources\SupplierResource; // សន្មតថាអ្នកមាន Resource នេះ
 use Illuminate\Http\Request;
-use App\Http\Resources\SupplierResource;
 
 class SupplierController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Supplier::query();
+        $suppliers = Supplier::query()
+            ->when($request->filled('search'), function ($q) use ($request) {
+                // រុំ function ទប់កុំឱ្យ orWhere ប៉ះពាល់លក្ខខណ្ឌផ្សេងទៀត
+                $q->where(function ($inner) use ($request) {
+                    $inner->where('name', 'LIKE', "%{$request->search}%")
+                        ->orWhere('phone', 'LIKE', "%{$request->search}%")
+                        ->orWhere('email', 'LIKE', "%{$request->search}%");
+                });
+            })
+            // ប្រើប្រាស់ filled និង boolean() របស់ Laravel ផ្ទាល់
+            ->when($request->filled('status'), function ($q) use ($request) {
+                $q->where('status', $request->boolean('status'));
+            })
+            ->latest()
+            ->paginate($request->get('per_page', 10)); // ប្តូរមកប្រើ per_page ជាស្តង់ដារ
 
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'LIKE', "%{$search}%")
-                    ->orWhere('phone', 'LIKE', "%{$search}%")
-                    ->orWhere('email', 'LIKE', "%{$search}%");
-            });
-        }
-
-        if ($request->has('status')) {
-            $query->where('status', filter_var($request->status, FILTER_VALIDATE_BOOLEAN));
-        }
-
-        $suppliers = $query->latest()->paginate($request->limit ?? 10);
-
-        // ប្រើ getData(true) ដើម្បីបង្ហាញព័ត៌មាន Pagination ក្នុង Response
         return $this->sendResponse(
             SupplierResource::collection($suppliers)->response()->getData(true),
             'Suppliers retrieved successfully.'
         );
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -48,29 +43,19 @@ class SupplierController extends Controller
             'status'  => 'boolean',
         ]);
 
+        // កំណត់ Status ជា true ជានិច្ចបើអត់មានបញ្ជូនមក
+        $data['status'] = $request->has('status') ? $request->boolean('status') : true;
+
         $supplier = Supplier::create($data);
 
-        return $this->sendResponse(
-            new SupplierResource($supplier),
-            'Supplier created successfully.',
-            201
-        );
+        return $this->sendResponse(new SupplierResource($supplier), 'Supplier created successfully.', 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Supplier $supplier)
     {
-        return $this->sendResponse(
-            new SupplierResource($supplier),
-            'Supplier details retrieved.'
-        );
+        return $this->sendResponse(new SupplierResource($supplier), 'Supplier details retrieved.');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Supplier $supplier)
     {
         $data = $request->validate([
@@ -83,27 +68,59 @@ class SupplierController extends Controller
 
         $supplier->update($data);
 
-        return $this->sendResponse(
-            new SupplierResource($supplier),
-            'Supplier updated successfully.'
-        );
+        return $this->sendResponse(new SupplierResource($supplier), 'Supplier updated successfully.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+    // លុបបណ្ដោះអាសន្ន (Soft Delete)
     public function destroy(Supplier $supplier)
     {
         if ($supplier->stockMovements()->exists()) {
             return $this->sendError(
                 'Validation Error.',
-                ['Cannot delete this supplier because they have a history of stock transactions.'],
+                ['error' => 'Cannot delete this supplier because they have a history of stock transactions.'],
                 400
             );
         }
 
         $supplier->delete();
 
-        return $this->sendResponse([], 'Supplier deleted successfully.');
+        return $this->sendResponse([], 'Supplier moved to trash.');
+    }
+
+    // 🌟 បន្ថែម៖ មើលបញ្ជីធុងសំរាម
+    public function trash(Request $request)
+    {
+        $suppliers = Supplier::onlyTrashed()
+            ->latest('deleted_at')
+            ->paginate($request->get('per_page', 10));
+
+        return $this->sendResponse(
+            SupplierResource::collection($suppliers)->response()->getData(true),
+            'Trashed suppliers retrieved.'
+        );
+    }
+
+    // 🌟 បន្ថែម៖ យកមកវិញពីធុងសំរាម
+    public function restore(string $id)
+    {
+        $supplier = Supplier::withTrashed()->findOrFail($id);
+        $supplier->restore();
+
+        return $this->sendResponse(new SupplierResource($supplier), 'Supplier restored successfully.');
+    }
+
+    // 🌟 បន្ថែម៖ លុបដាច់ជាស្ថាពរ
+    public function forceDelete(string $id)
+    {
+        $supplier = Supplier::withTrashed()->findOrFail($id);
+
+        // ឆែកមើលម្តងទៀតមុនលុបដាច់
+        if ($supplier->stockMovements()->exists()) {
+            return $this->sendError('Cannot permanently delete this supplier due to existing stock transactions.', [], 400);
+        }
+
+        $supplier->forceDelete();
+
+        return $this->sendResponse([], 'Supplier permanently deleted.');
     }
 }

@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
+use App\Http\Resources\UserResource;
 
 class UserManagementController extends Controller
 {
@@ -14,24 +14,22 @@ class UserManagementController extends Controller
     {
         $currentUser = $request->user();
 
+        // ដោះស្រាយ Bug កន្លែង Chain Query និង Return
         $users = User::with('profile')
-            // បន្ថែម Logic ឆែកសិទ្ធិនៅទីនេះ
             ->when(!$currentUser->isSuperAdmin(), function ($query) {
-                /** * ប្រសិនបើមិនមែនជា Super Admin ទេ ឱ្យឃើញតែ Customer ប៉ុណ្ណោះ 
-                 * ឬឃើញតែ Admin ផ្សេងទៀត (អាស្រ័យលើគោលការណ៍របស់អ្នក)
-                 */
-                return $query->where('role', 'customer');
+                // កុំប្រើ return ក្នុងនេះ! ប្រើ $query ផ្ទាល់
+                $query->where('role', 'customer');
             })
-            // បើមានការបញ្ជូន filter មកពី Frontend (ឧទាហរណ៍ ?role=admin)
-            ->when($request->role, function ($query) use ($request) {
-                return $query->where('role', $request->role);
+            ->when($request->filled('role'), function ($query) use ($request) {
+                $query->where('role', $request->role);
             })
-            ->when($request->is_active !== null, function ($query) use ($request) {
-                return $query->where('is_active', $request->is_active);
+            ->when($request->filled('is_active'), function ($query) use ($request) {
+                // ត្រូវប្រាកដថាប្រៀបធៀបជា boolean ឬ string '1'/'0'
+                $query->where('is_active', $request->boolean('is_active'));
             })
-            ->when($request->search, function ($query) use ($request) {
+            ->when($request->filled('search'), function ($query) use ($request) {
                 $search = $request->search;
-                return $query->where(function ($q) use ($search) {
+                $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%")
                         ->orWhere('phone_number', 'like', "%{$search}%");
@@ -44,14 +42,19 @@ class UserManagementController extends Controller
             'success' => true,
             'message' => 'List of users fetched successfully.',
             'data' => UserResource::collection($users)->response()->getData(true),
-        ]);
+        ], 200);
     }
+
     // view user details
     public function show(string $id)
     {
         $user = User::with('profile')->findOrFail($id);
 
-        return $this->sendResponse(new UserResource($user), 'User details');
+        return response()->json([
+            'success' => true,
+            'message' => 'User details fetched successfully.',
+            'data' => new UserResource($user)
+        ], 200);
     }
 
     // Enable / Disable user
@@ -60,15 +63,25 @@ class UserManagementController extends Controller
         $request->validate(['is_active' => 'required|boolean']);
 
         $user = User::findOrFail($id);
+        $currentUser = $request->user();
 
-        // ការពារ Admin មិនឱ្យ Disable ខ្លួនឯង (Security Check)
-        if ($request->user()->id === $user->id && !$request->is_active) {
-            return $this->sendError('You cannot disable your own account.', [], 403);
+        // ១. ការពារខ្លួនឯង
+        if ($currentUser->id === $user->id && !$request->is_active) {
+            return response()->json(['success' => false, 'message' => 'You cannot disable your own account.'], 403);
+        }
+
+        // 🌟 ២. ការពារ Super Admin ពី Admin ធម្មតា
+        if ($user->isSuperAdmin() && !$currentUser->isSuperAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized: Cannot modify Super Admin status.'], 403);
         }
 
         $user->update(['is_active' => $request->is_active]);
 
-        return $this->sendResponse(new UserResource($user), 'User status updated');
+        return response()->json([
+            'success' => true,
+            'message' => 'User status updated successfully.',
+            'data' => new UserResource($user)
+        ], 200);
     }
 
     // Change role
@@ -79,17 +92,25 @@ class UserManagementController extends Controller
         ]);
 
         $user = User::findOrFail($id);
+        $currentUser = $request->user();
 
-        // [SSDLC Guard] ការពារ Admin មិនឱ្យប្តូរ Role ខ្លួនឯង (ដើម្បីកុំឱ្យបាត់សិទ្ធិគ្រប់គ្រង)
-        if ($request->user()->id === $user->id) {
-            return $this->sendError('You cannot change your own role for security reasons.', [], 403);
+        // ១. ការពារខ្លួនឯង
+        if ($currentUser->id === $user->id) {
+            return response()->json(['success' => false, 'message' => 'You cannot change your own role.'], 403);
         }
 
-        $user->update([
-            'role' => $request->role,
-        ]);
+        // 🌟 ២. ការពារ Super Admin ពី Admin ធម្មតា និង ការពារមិនឱ្យ Admin ធម្មតាបង្កើត Admin ថ្មីផ្តេសផ្តាស
+        if (!$currentUser->isSuperAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized: Only Super Admin can change user roles.'], 403);
+        }
 
-        return $this->sendResponse(new UserResource($user->load('profile')), 'User role updated successfully.');
+        $user->update(['role' => $request->role]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User role updated successfully.',
+            'data' => new UserResource($user->load('profile'))
+        ], 200);
     }
 
     // Delete user
@@ -98,17 +119,21 @@ class UserManagementController extends Controller
         $userToDelete = User::findOrFail($id);
         $currentUser = $request->user();
 
-        // ១. កម្រិតសិទ្ធិ: មានតែ Super Admin ទេទើបអាចលុប Admin ផ្សេងទៀតបាន
+        // ១. ការពារ Super Admin និង Admin (កម្រិតសិទ្ធិដែលអ្នកបានធ្វើគឺត្រូវហើយ ខ្ញុំគ្រាន់តែពង្រឹងវា)
         if ($userToDelete->role === 'admin' && !$currentUser->isSuperAdmin()) {
-            return $this->sendError('Unauthorized: Only Super Admin can delete other admins.', [], 403);
+            return response()->json(['success' => false, 'message' => 'Unauthorized: Only Super Admin can delete admins.'], 403);
         }
 
-        // ២. ការពារការលុបខ្លួនឯង (ដូចដែលបានធ្វើរួច)
+        // ២. ការពារការលុបខ្លួនឯង
         if ($currentUser->id === $userToDelete->id) {
-            return $this->sendError('You cannot delete your own account.');
+            return response()->json(['success' => false, 'message' => 'You cannot delete your own account.'], 403); // ប្តូរទៅ 403 ឱ្យត្រូវស្តង់ដារ
         }
 
         $userToDelete->delete();
-        return $this->sendResponse([], 'User deleted successfully.');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User deleted successfully.'
+        ], 200);
     }
 }

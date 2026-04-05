@@ -2,14 +2,17 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
-
 
 class ProductSerial extends Model
 {
     use HasFactory, HasUuids;
+
+    // 🌟 បន្ថែមចំណុចនេះឱ្យដូច Model ផ្សេងទៀត
+    public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $fillable = [
         'product_id',
@@ -29,8 +32,6 @@ class ProductSerial extends Model
         return $this->belongsTo(ProductStockMovement::class, 'initial_movement_id');
     }
 
-    // មុខងារសម្រាប់គណនាថ្ងៃផុតកំណត់ (Expiry Date)
-
     public function soldMovement()
     {
         return $this->belongsTo(ProductStockMovement::class, 'sold_movement_id');
@@ -41,16 +42,15 @@ class ProductSerial extends Model
      */
     public function getWarrantyExpiryDateAttribute()
     {
-        // បើមិនទាន់លក់ចេញ គឺមិនទាន់មានថ្ងៃផុតកំណត់ទេ
         if (!$this->sold_movement_id || !$this->product->warranty) {
             return null;
         }
 
-        // ថ្ងៃលក់ចេញ + រយៈពេលធានា (ខែ)
         $saleDate = $this->soldMovement->created_at;
         $duration = $this->product->warranty->duration_months;
 
-        return $saleDate->addMonths($duration);
+        // 🌟 ប្រើ copy() ដើម្បីកុំឱ្យប៉ះពាល់ដល់ថ្ងៃដើមរបស់ soldMovement
+        return $saleDate->copy()->addMonths($duration);
     }
 
     /**

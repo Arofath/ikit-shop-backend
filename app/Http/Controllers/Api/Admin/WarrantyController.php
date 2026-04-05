@@ -4,9 +4,8 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Warranty;
+use App\Http\Resources\WarrantyResource; // សន្មតថាអ្នកមាន Resource នេះ
 use Illuminate\Http\Request;
-use App\Http\Resources\WarrantyResource;
-use Illuminate\Support\Facades\DB;
 
 class WarrantyController extends Controller
 {
@@ -19,14 +18,16 @@ class WarrantyController extends Controller
             $query->where('name', 'LIKE', "%{$request->search}%");
         }
 
-        if ($request->has('status')) {
-            $query->where('is_active', filter_var($request->status, FILTER_VALIDATE_BOOLEAN));
+        if ($request->filled('status')) { // ប្រើ filled ជំនួស has ដើម្បីចៀសវាងតម្លៃទទេ
+            // 🌟 ប្រើ boolean() របស់ Laravel
+            $query->where('is_active', $request->boolean('status'));
         }
 
-        $warranties = $query->latest()->get();
+        // 🌟 ដូរពី get() មក paginate()
+        $warranties = $query->latest()->paginate($request->get('per_page', 15));
 
         return $this->sendResponse(
-            WarrantyResource::collection($warranties),
+            WarrantyResource::collection($warranties)->response()->getData(true),
             'Warranties retrieved successfully.'
         );
     }
@@ -41,6 +42,9 @@ class WarrantyController extends Controller
             'description'     => 'nullable|string',
             'is_active'       => 'boolean',
         ]);
+
+        // កំណត់ is_active = true ជា Default បើអត់មានបញ្ជូនមក
+        $data['is_active'] = $request->has('is_active') ? $request->boolean('is_active') : true;
 
         $warranty = Warranty::create($data);
 
@@ -71,6 +75,10 @@ class WarrantyController extends Controller
             'is_active'       => 'boolean',
         ]);
 
+        if ($request->has('is_active')) {
+            $data['is_active'] = $request->boolean('is_active');
+        }
+
         $warranty->update($data);
 
         return $this->sendResponse(
@@ -79,7 +87,7 @@ class WarrantyController extends Controller
         );
     }
 
-    // ៥. លុប (Security: មិនឱ្យលុបបើមាន Product កំពុងប្រើ)
+    // ៥. លុប
     public function destroy(Warranty $warranty)
     {
         if ($warranty->products()->exists()) {
@@ -91,6 +99,7 @@ class WarrantyController extends Controller
         }
 
         $warranty->delete();
+
         return $this->sendResponse([], 'Warranty deleted successfully.');
     }
 }

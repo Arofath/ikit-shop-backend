@@ -32,4 +32,12 @@ class Supplier extends Model
     {
         return $this->hasMany(ProductStockMovement::class);
     }
+
+    public function products()
+    {
+        return $this->belongsToMany(Product::class, 'product_stock_movements')
+            ->withPivot(['type', 'quantity', 'cost_price', 'created_at'])
+            ->wherePivot('type', 'IN')
+            ->distinct();
+    }
 }

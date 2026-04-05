@@ -37,8 +37,8 @@ class Product extends Model
         ];
     }
 
-    // ទាញយក Thumbnail មកជាមួយជានិច្ច
-    protected $with = ['thumbnail'];
+    // 🛑 REMOVED: protected $with = ['thumbnail']; 
+    // We will load this explicitly in the Controller when needed.
 
     // Accessor សម្រាប់បង្ហាញតម្លៃបញ្ចុះរួច (Optional but useful)
     public function getFinalPriceAttribute()
@@ -76,12 +76,19 @@ class Product extends Model
     {
         return $this->hasMany(ProductStockMovement::class);
     }
-    // បន្ថែម 'current_stock' ទៅក្នុង append ដើម្បីឱ្យវារត់ស្វ័យប្រវត្តិពេលហៅ Product
-    protected $appends = ['current_stock'];
-    // មុខងារគណនាចំនួនស្តុកសរុបនាពេលបច្ចុប្បន្ន (Sum IN + Sum ADJUST - Sum OUT)
+
+    public function suppliers()
+    {
+        return $this->belongsToMany(Supplier::class, 'product_stock_movements')
+            ->withPivot(['type', 'quantity', 'cost_price', 'created_at'])
+            ->wherePivot('type', 'IN') // យកតែប្រវត្តិដែលទិញចូល
+            ->distinct();
+    }
+
+    // មុខងារគណនាចំនួនស្តុកសរុបនាពេលបច្ចុប្បន្ន 
+    // We keep the method, but it won't run automatically anymore.
     public function getCurrentStockAttribute()
     {
-        // ប្រើ Query តែមួយដើម្បីបូកសរុប (More Efficient)
         $stats = $this->stockMovements()
             ->selectRaw("
             SUM(CASE WHEN type = 'IN' THEN quantity ELSE 0 END) +
@@ -98,12 +105,11 @@ class Product extends Model
         return $this->hasMany(ProductSerial::class);
     }
 
-    public function availableSerials() // ទាញយកតែ Serial ណាដែលនៅទំនេរ (AVAILABLE) សម្រាប់លក់
+    public function availableSerials()
     {
         return $this->serials()->where('status', 'AVAILABLE');
     }
 
-    // Relationship ពិសេសសម្រាប់រូបភាពតំណាង
     public function thumbnail()
     {
         return $this->hasOne(ProductImage::class)->where('is_thumbnail', true);
