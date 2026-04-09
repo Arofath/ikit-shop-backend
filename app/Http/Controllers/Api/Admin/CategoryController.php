@@ -51,7 +51,7 @@ class CategoryController extends Controller
             'name'      => $request->name,
             'slug'      => $this->generateUniqueSlug($request->name),
             'parent_id' => $request->parent_id,
-            'is_active' => true,
+            'is_active' => $request->boolean('is_active', true),
         ]);
 
         return $this->sendResponse(new CategoryResource($category), 'Category created successfully.', 201);

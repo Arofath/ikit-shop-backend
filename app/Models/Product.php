@@ -50,7 +50,7 @@ class Product extends Model
     // --- Relationships ---
     public function category()
     {
-        return $this->belongsTo(Category::class);
+        return $this->belongsToMany(Category::class);
     }
     public function brand()
     {
