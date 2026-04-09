@@ -1,16 +1,15 @@
-# ប្រើប្រាស់ PHP ជំនាន់ 8.2 (អ្នកអាចដូរទៅ 8.1 តាមជំនាន់ Project អ្នកបាន)
 FROM php:8.2-cli
 
-# ដំឡើង Tools និង Packages ដែលចាំបាច់
+# ដំឡើង Tools និង Packages ដែលចាំបាច់ (ថែម libzip-dev សម្រាប់ zip)
 RUN apt-get update && apt-get install -y \
     unzip \
     git \
-    libpq-dev \
     curl \
+    libzip-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# ដំឡើង PHP Extensions សម្រាប់ភ្ជាប់ទៅកាន់ Database MySQL (TiDB)
-RUN docker-php-ext-install pdo pdo_mysql
+# ដំឡើងតែ pdo_mysql និង zip បានហើយ (មិនបាច់ដាក់ pdo ទេ)
+RUN docker-php-ext-install pdo_mysql zip
 
 # កំណត់ទីតាំងការងារក្នុង Docker
 WORKDIR /app
@@ -22,8 +21,8 @@ COPY . .
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader
 
-# ផ្តល់សិទ្ធិ (Permissions) ឲ្យ Laravel អាចសរសេរឯកសារបាន
+# ផ្តល់សិទ្ធិ (Permissions)
 RUN chmod -R 777 storage bootstrap/cache
 
-# បញ្ជាឲ្យដំណើរការ Server ពេល Docker ដើរ
+# បញ្ជាឲ្យដំណើរការ Server
 CMD php artisan serve --host=0.0.0.0 --port=$PORT
