@@ -1,6 +1,7 @@
-FROM php:8.2-cli
+# ប្តូរមកប្រើ PHP ជំនាន់ 8.4 ឲ្យត្រូវនឹងតម្រូវការរបស់ Laravel ថ្មី
+FROM php:8.4-cli
 
-# ដំឡើង Tools និង Packages ដែលចាំបាច់ (ថែម libzip-dev សម្រាប់ zip)
+# ដំឡើង Tools និង Packages ដែលចាំបាច់
 RUN apt-get update && apt-get install -y \
     unzip \
     git \
@@ -8,20 +9,20 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# ដំឡើងតែ pdo_mysql និង zip បានហើយ (មិនបាច់ដាក់ pdo ទេ)
+# ដំឡើង pdo_mysql និង zip
 RUN docker-php-ext-install pdo_mysql zip
 
 # កំណត់ទីតាំងការងារក្នុង Docker
 WORKDIR /app
 
-# ចម្លងកូដ Project ទាំងអស់ចូលទៅក្នុង Docker
+# ចម្លងកូដ Project ទាំងអស់
 COPY . .
 
-# ដំឡើង Composer និង Packages របស់ Laravel
+# ដំឡើង Composer 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader
 
-# ផ្តល់សិទ្ធិ (Permissions)
+# ផ្តល់សិទ្ធិ
 RUN chmod -R 777 storage bootstrap/cache
 
 # បញ្ជាឲ្យដំណើរការ Server
