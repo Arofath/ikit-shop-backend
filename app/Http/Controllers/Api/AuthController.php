@@ -101,7 +101,7 @@ class AuthController extends Controller
                 'is_active' => true,
             ]);
 
-            $bypassOtp = env('BYPASS_OTP_ON_LOCAL', false) && app()->environment('local');
+            $bypassOtp = env('BYPASS_OTP_ON_LOCAL', false);
 
             if ($bypassOtp) {
                 $user->update(['email_verified_at' => now()]);
@@ -179,7 +179,7 @@ class AuthController extends Controller
         $user->update(['last_login_at' => now()]);
 
         if ($user->role === 'admin') {
-            $bypassOtp = env('BYPASS_OTP_ON_LOCAL', false) && app()->environment('local');
+            $bypassOtp = env('BYPASS_OTP_ON_LOCAL', false);
 
             if ($bypassOtp) {
                 $token = $user->createToken('api_token')->plainTextToken;
@@ -297,7 +297,7 @@ class AuthController extends Controller
             // ហៅប្រើ Helper Method
             $otpCode = $this->generateAndSaveOtp($user, 'register');
 
-            $bypassOtp = env('BYPASS_OTP_ON_LOCAL', false) && app()->environment('local');
+            $bypassOtp = env('BYPASS_OTP_ON_LOCAL', false);
             if (!$bypassOtp) {
                 Mail::to($user->email)->send(new RegisterOtpMail($otpCode));
             }
