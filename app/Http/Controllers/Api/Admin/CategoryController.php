@@ -13,20 +13,42 @@ use App\Services\CloudinaryStorageService; // 🌟 ហៅប្រើ Cloudinary
 class CategoryController extends Controller
 {
     // List categories as tree
-    public function index()
+    public function index(Request $request)
     {
-        $categories = Category::whereNull('parent_id')
-            ->with(['children' => function ($query) {
-                $query->orderBy('name', 'asc');
-            }])
-            ->orderBy('name')
-            ->get();
+        // ១. ចាប់យកតម្លៃ status ពី URL (?status=active ឬ ?status=inactive)
+        $status = $request->query('status');
+
+        // ២. ចាប់ផ្តើមសរសេរ Query សម្រាប់ Category មេ
+        $query = Category::whereNull('parent_id');
+
+        // ៣. ដាក់លក្ខខណ្ឌ Filter សម្រាប់ Category មេ
+        if ($status === 'active') {
+            $query->where('is_active', true);
+        } elseif ($status === 'inactive') {
+            $query->where('is_active', false);
+        }
+
+        // ៤. ទាញយកកូនៗ (Children) ព្រមទាំងដាក់លក្ខខណ្ឌ Filter ទៅឲ្យកូនៗដូចគ្នា
+        $query->with(['children' => function ($q) use ($status) {
+            $q->orderBy('name', 'asc');
+
+            // បើគេចង់បានតែ Active កូនៗក៏ត្រូវតែ Active ដែរ
+            if ($status === 'active') {
+                $q->where('is_active', true);
+            } elseif ($status === 'inactive') {
+                $q->where('is_active', false);
+            }
+        }]);
+
+        // ៥. បញ្ចប់ Query ដោយតម្រៀបឈ្មោះ និងទាញយកទិន្នន័យ
+        $categories = $query->orderBy('name')->get();
 
         return $this->sendResponse(
             CategoryResource::collection($categories),
             'Categories tree retrieved successfully.'
         );
     }
+    
 
     // Show category detail
     public function show(string $id)
