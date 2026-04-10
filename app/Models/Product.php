@@ -18,7 +18,6 @@ class Product extends Model
         'name',
         'sku',
         'slug',
-        'category_id',
         'brand_id',
         'warranty_id',
         'product_series_id',
@@ -37,8 +36,6 @@ class Product extends Model
         ];
     }
 
-    // 🛑 REMOVED: protected $with = ['thumbnail']; 
-    // We will load this explicitly in the Controller when needed.
 
     // Accessor សម្រាប់បង្ហាញតម្លៃបញ្ចុះរួច (Optional but useful)
     public function getFinalPriceAttribute()
@@ -48,7 +45,7 @@ class Product extends Model
     }
 
     // --- Relationships ---
-    public function category()
+    public function categories()
     {
         return $this->belongsToMany(Category::class);
     }

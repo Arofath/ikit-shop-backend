@@ -38,7 +38,7 @@ class ProductResource extends JsonResource
                 return $this->thumbnail->image_path;
             }),
 
-            // Gallery: បត់បែនតាមអ្នកប្រើប្រាស់
+            //Gallery: បត់បែនតាមអ្នកប្រើប្រាស់
             'images' => $this->whenLoaded('images', function () use ($isAdmin) {
                 if ($isAdmin) {
                     return $this->images->map(fn($img) => [
@@ -52,7 +52,7 @@ class ProductResource extends JsonResource
             }),
 
             // រក្សាទុកជា Object ដដែលដើម្បីឱ្យ Frontend ងាយស្រួលប្រើប្រាស់
-            'category'       => new CategoryResource($this->whenLoaded('category')),
+            'categories' => CategoryResource::collection($this->whenLoaded('categories')),
             'brand'          => new BrandResource($this->whenLoaded('brand')),
             'warranty'       => $this->whenLoaded('warranty'),
             'product_series' => $this->whenLoaded('productSeries'),
