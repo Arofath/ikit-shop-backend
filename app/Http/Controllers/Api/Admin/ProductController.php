@@ -61,7 +61,7 @@ class ProductController extends Controller
         $validatedData = $request->validate([
             'name'              => 'required|string|max:255',
             'sku'               => 'nullable|string|unique:products,sku',
-            // 🌟 ដូរពី category_id ទៅជា category_ids (Array)
+            'description'       => 'nullable|string',
             'category_ids'      => 'required|array|min:1',
             'category_ids.*'    => 'exists:categories,id', // ឆែកមើលថាលេខ ID និមួយៗពិតជាមានក្នុង DB
             'brand_id'          => 'required|exists:brands,id',
@@ -84,6 +84,10 @@ class ProductController extends Controller
             // 🌟 ដកយក category_ids ចេញពី Array សិន មុននឹង Save ចូលតារាង products
             $categoryIds = $validatedData['category_ids'];
             unset($validatedData['category_ids']);
+
+            if (empty($validatedData['sku'])) {
+                $validatedData['sku'] = strtoupper(substr(Str::slug($validatedData['name']), 0, 3)) . '-' . rand(10000, 99999);
+            }
 
             // បង្កើត Product
             $product = Product::create($validatedData);
@@ -111,7 +115,7 @@ class ProductController extends Controller
         $validatedData = $request->validate([
             'name'              => 'sometimes|required|string|max:255',
             'sku'               => 'sometimes|required|string|unique:products,sku,' . $id,
-            // 🌟 កែប្រែ Validation សម្រាប់ Update ដែរ
+            'description'       => 'nullable|string',
             'category_ids'      => 'sometimes|required|array|min:1',
             'category_ids.*'    => 'exists:categories,id',
             'brand_id'          => 'sometimes|required|exists:brands,id',
