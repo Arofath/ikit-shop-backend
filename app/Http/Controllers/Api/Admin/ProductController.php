@@ -103,7 +103,7 @@ class ProductController extends Controller
     // ៤. ទាញយក Detail តាម ID (សម្រាប់ Admin Edit)
     public function show(string $id)
     {
-        $product = Product::with(['images', 'specs'])->findOrFail($id);
+        $product = Product::with(['categories', 'brand','images', 'specs'])->findOrFail($id);
         return $this->sendResponse(new ProductResource($product), 'Product fetched.');
     }
 
