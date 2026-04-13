@@ -212,16 +212,14 @@ class ProductController extends Controller
 
     public function getStats()
     {
-        // ចំណាំ៖ ដោយសារអ្នកមិនទាន់បានរៀបចំប្រព័ន្ធ Stock ពេញលេញ 
-        // កន្លែង low_stock និង out_of_stock អាចនឹងត្រូវកែប្រែឈ្មោះ Field (ឧ. quantity) នៅពេលក្រោយ។
-        // ខ្ញុំដាក់ 'quantity' ជាឧទាហរណ៍សិន។
-
+        // រាប់ចំនួន Product សរុប និង Product ដែលកំពុង Active
         $totalProducts = Product::count();
         $activeProducts = Product::where('is_active', true)->count();
 
-        // បើអ្នកមិនទាន់មាន Field quantity ទេ អាចដាក់លេខ 0 សិនបាន
-        $lowStock = Product::where('is_active', true)->where('quantity', '<', 5)->where('quantity', '>', 0)->count();
-        $outOfStock = Product::where('is_active', true)->where('quantity', '<=', 0)->count();
+        // 🌟 ដោយសារយើងមិនទាន់ភ្ជាប់ប្រព័ន្ធ Stock Movement (អត់ទាន់មាន Quantity)
+        // យើងកំណត់វាទៅជា 0 សិន ដើម្បីកុំឱ្យលោត Error 500។
+        $lowStock = 0;
+        $outOfStock = 0;
 
         return response()->json([
             'success' => true,
