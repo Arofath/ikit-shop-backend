@@ -209,4 +209,28 @@ class ProductController extends Controller
         $count = Product::where('slug', $slug)->when($id, fn($q) => $q->where('id', '!=', $id))->count();
         return $count > 0 ? "{$slug}-" . time() : $slug;
     }
+
+    public function getStats()
+    {
+        // ចំណាំ៖ ដោយសារអ្នកមិនទាន់បានរៀបចំប្រព័ន្ធ Stock ពេញលេញ 
+        // កន្លែង low_stock និង out_of_stock អាចនឹងត្រូវកែប្រែឈ្មោះ Field (ឧ. quantity) នៅពេលក្រោយ។
+        // ខ្ញុំដាក់ 'quantity' ជាឧទាហរណ៍សិន។
+
+        $totalProducts = Product::count();
+        $activeProducts = Product::where('is_active', true)->count();
+
+        // បើអ្នកមិនទាន់មាន Field quantity ទេ អាចដាក់លេខ 0 សិនបាន
+        $lowStock = Product::where('is_active', true)->where('quantity', '<', 5)->where('quantity', '>', 0)->count();
+        $outOfStock = Product::where('is_active', true)->where('quantity', '<=', 0)->count();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'total_products' => $totalProducts,
+                'active_products' => $activeProducts,
+                'low_stock' => $lowStock,
+                'out_of_stock' => $outOfStock,
+            ]
+        ]);
+    }
 }
