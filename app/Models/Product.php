@@ -25,6 +25,7 @@ class Product extends Model
         'price',
         'discount_percent',
         'is_active',
+        'is_serialized',
     ];
 
     protected function casts(): array
@@ -33,6 +34,7 @@ class Product extends Model
             'price' => 'decimal:2',
             'discount_percent' => 'decimal:2',
             'is_active' => 'boolean',
+            'is_serialized',
         ];
     }
 

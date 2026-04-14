@@ -46,22 +46,30 @@ class ProductStockMovementController extends Controller
             'quantity'         => 'required|integer|min:1',
             'cost_price'       => 'required_if:type,IN|nullable|numeric|min:0',
             'note'             => 'nullable|string',
-            'serials'          => 'required_if:type,IN,OUT|array',
+            // 🌟 ប្តូរ serials ទៅជា nullable សិន ព្រោះយើងនឹងឆែកវានៅខាងក្រោម
+            'serials'          => 'nullable|array',
             'serials.*'        => 'string|distinct',
         ]);
 
-        // 🌟 ១. ឆែកមើលចំនួន Quantity និងចំនួន Serial ត្រូវតែស្មើគ្នា
-        if (in_array($data['type'], ['IN', 'OUT'])) {
-            if (count($data['serials']) !== (int) $data['quantity']) {
-                return $this->sendError('Validation Error.', ['The number of serials must exactly match the quantity.'], 422);
+        // ទាញយក Product មកសិន ដើម្បីឆែកមើលលក្ខខណ្ឌ
+        $product = Product::findOrFail($data['product_id']);
+
+        // 🌟 ១. លក្ខខណ្ឌថ្មី៖ ឆែកមើល Serial ផ្អែកលើប្រភេទ Product
+        if ($product->is_serialized) {
+            if (in_array($data['type'], ['IN', 'OUT'])) {
+                // បើមាន Serial ត្រូវតែបញ្ចូល Serial ឱ្យស្មើនឹង Quantity
+                if (empty($data['serials']) || count($data['serials']) !== (int) $data['quantity']) {
+                    return $this->sendError('Validation Error.', ['The number of serials must exactly match the quantity for serialized products.'], 422);
+                }
             }
+        } else {
+            // 🌟 បើទំនិញនេះគ្មាន Serial ទេ មិនបាច់ខ្វល់ពីវាឡើយ (លុបចោលដើម្បីសុវត្ថិភាព)
+            $data['serials'] = [];
         }
 
-        // 🌟 ២. ប្រើប្រាស់ DB::beginTransaction() ផ្ទាល់ ដើម្បីអាចទប់ស្កាត់ (Rollback) និង Return Error Code តាមចិត្ត
         DB::beginTransaction();
 
         try {
-            $product = Product::findOrFail($data['product_id']);
             $currentStock = $this->calculateStock($product->id);
 
             // ឆែកលក្ខខណ្ឌពេលលក់ចេញ (OUT)
@@ -71,53 +79,57 @@ class ProductStockMovementController extends Controller
                     return $this->sendError('Stock insufficient.', ["Current available: {$currentStock}"], 422);
                 }
 
-                $validSerials = ProductSerial::whereIn('serial_number', $data['serials'])
-                    ->where('product_id', $product->id)
-                    ->where('status', 'AVAILABLE')
-                    ->count();
+                // 🌟 ឆែក Serial សម្រាប់តែទំនិញដែលមាន Serial ប៉ុណ្ណោះ
+                if ($product->is_serialized) {
+                    $validSerials = ProductSerial::whereIn('serial_number', $data['serials'])
+                        ->where('product_id', $product->id)
+                        ->where('status', 'AVAILABLE')
+                        ->count();
 
-                if ($validSerials !== count($data['serials'])) {
-                    DB::rollBack();
-                    return $this->sendError('Some serial numbers are invalid or already sold.', [], 422);
+                    if ($validSerials !== count($data['serials'])) {
+                        DB::rollBack();
+                        return $this->sendError('Some serial numbers are invalid or already sold.', [], 422);
+                    }
                 }
             }
 
-            // បង្កើត Stock Movement Record
+            // បង្កើត Stock Movement Record (អនុវត្តសម្រាប់គ្រប់ទំនិញ)
             $change = ($data['type'] === 'OUT') ? -$data['quantity'] : $data['quantity'];
             $data['balance_after'] = $currentStock + $change;
 
             $movement = ProductStockMovement::create($data);
 
-            // ចាត់ចែង Serial Numbers
-            if ($data['type'] === 'IN') {
-                $serialData = [];
-                foreach ($data['serials'] as $sn) {
-                    $serialData[] = [
-                        'id'                  => (string) Str::uuid(),
-                        'product_id'          => $product->id,
-                        'initial_movement_id' => $movement->id,
-                        'serial_number'       => $sn,
-                        'status'              => 'AVAILABLE',
-                        'created_at'          => now(),
-                        'updated_at'          => now(),
-                    ];
+            // 🌟 ចាត់ចែង Serial Numbers (ដំណើរការលុះត្រាតែមាន Serial)
+            if ($product->is_serialized && !empty($data['serials'])) {
+                if ($data['type'] === 'IN') {
+                    $serialData = [];
+                    foreach ($data['serials'] as $sn) {
+                        $serialData[] = [
+                            'id'                  => (string) Str::uuid(),
+                            'product_id'          => $product->id,
+                            'initial_movement_id' => $movement->id,
+                            'serial_number'       => $sn,
+                            'status'              => 'AVAILABLE',
+                            'created_at'          => now(),
+                            'updated_at'          => now(),
+                        ];
+                    }
+                    ProductSerial::insert($serialData);
+                } elseif ($data['type'] === 'OUT') {
+                    ProductSerial::whereIn('serial_number', $data['serials'])
+                        ->where('product_id', $product->id)
+                        ->update([
+                            'status'           => 'SOLD',
+                            'sold_movement_id' => $movement->id
+                        ]);
                 }
-                ProductSerial::insert($serialData); // ប្រើ insert ជំនួស create កាត់បន្ថយ Query ឱ្យនៅតែ ១
-
-            } elseif ($data['type'] === 'OUT') {
-                ProductSerial::whereIn('serial_number', $data['serials'])
-                    ->where('product_id', $product->id)
-                    ->update([
-                        'status'           => 'SOLD',
-                        'sold_movement_id' => $movement->id
-                    ]);
             }
 
-            DB::commit(); // 🌟 ប្រសិនបើគ្មាន Error ទេ ទើបអនុម័តទិន្នន័យ
+            DB::commit();
 
             return $this->sendResponse(
                 new ProductStockMovementResource($movement),
-                'Stock and Serial Numbers recorded successfully.',
+                'Stock movement recorded successfully.',
                 201
             );
         } catch (\Exception $e) {

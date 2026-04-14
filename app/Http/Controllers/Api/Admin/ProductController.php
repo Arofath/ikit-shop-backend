@@ -69,6 +69,8 @@ class ProductController extends Controller
             'discount_percent'  => 'nullable|numeric|min:0|max:100',
             'product_series_id' => 'nullable|exists:product_series,id',
             'warranty_id'       => 'nullable|exists:warranties,id',
+            'is_active'         => 'boolean',
+            'is_serialized' => 'boolean',
         ]);
 
         return DB::transaction(function () use ($validatedData) {
@@ -124,6 +126,7 @@ class ProductController extends Controller
             'product_series_id' => 'nullable|exists:product_series,id',
             'warranty_id'       => 'nullable|exists:warranties,id',
             'is_active'         => 'boolean',
+            'is_serialized' => 'boolean',
         ]);
 
         return DB::transaction(function () use ($request, $product, $validatedData) {
