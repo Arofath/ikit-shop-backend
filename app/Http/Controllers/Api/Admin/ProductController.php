@@ -63,41 +63,42 @@ class ProductController extends Controller
             'sku'               => 'nullable|string|unique:products,sku',
             'description'       => 'nullable|string',
             'category_ids'      => 'required|array|min:1',
-            'category_ids.*'    => 'exists:categories,id', // ឆែកមើលថាលេខ ID និមួយៗពិតជាមានក្នុង DB
+            'category_ids.*'    => 'exists:categories,id',
             'brand_id'          => 'required|exists:brands,id',
             'price'             => 'required|numeric|min:0',
             'discount_percent'  => 'nullable|numeric|min:0|max:100',
             'product_series_id' => 'nullable|exists:product_series,id',
             'warranty_id'       => 'nullable|exists:warranties,id',
             'is_active'         => 'boolean',
-            'is_serialized' => 'boolean',
+            'is_serialized'     => 'boolean',
         ]);
 
-        return DB::transaction(function () use ($validatedData) {
+        return DB::transaction(function () use ($request, $validatedData) {
             $validatedData['slug'] = $this->generateUniqueSlug($validatedData['name']);
 
+            // បង្កើត SKU ស្វ័យប្រវត្តិបើអត់មានបញ្ជូនមក (លុបកូដដែលជាន់គ្នាចោល)
             if (empty($validatedData['sku'])) {
                 $validatedData['sku'] = strtoupper(substr(Str::slug($validatedData['name']), 0, 3)) . '-' . rand(10000, 99999);
             }
 
             $validatedData['discount_percent'] = $validatedData['discount_percent'] ?? 0;
-            $validatedData['is_active'] = true;
 
-            // 🌟 ដកយក category_ids ចេញពី Array សិន មុននឹង Save ចូលតារាង products
+            // 🌟 ដំណោះស្រាយ: ប្រើ boolean() របស់ Laravel ដើម្បីយកតម្លៃពិតពី Frontend (បើអត់មានបញ្ជូនមក យក True ជា Default)
+            $validatedData['is_active'] = $request->has('is_active') ? $request->boolean('is_active') : true;
+
+            // 🌟 ដំណោះស្រាយ: កំណត់ Serialized (បើអត់មានបញ្ជូនមក យក False ជា Default ព្រោះទំនិញភាគច្រើនអត់មាន Serial ទេ)
+            $validatedData['is_serialized'] = $request->has('is_serialized') ? $request->boolean('is_serialized') : false;
+
+            // ដកយក category_ids ចេញពី Array សិន មុននឹង Save
             $categoryIds = $validatedData['category_ids'];
             unset($validatedData['category_ids']);
-
-            if (empty($validatedData['sku'])) {
-                $validatedData['sku'] = strtoupper(substr(Str::slug($validatedData['name']), 0, 3)) . '-' . rand(10000, 99999);
-            }
 
             // បង្កើត Product
             $product = Product::create($validatedData);
 
-            // 🌟 ភ្ជាប់ Categories ច្រើនទៅកាន់ Product (Save ចូល Pivot Table)
+            // ភ្ជាប់ Categories
             $product->categories()->sync($categoryIds);
 
-            // Load យក Categories មកវិញដើម្បីបង្ហាញក្នុង Response
             return $this->sendResponse(new ProductResource($product->load('categories')), 'Product created successfully.', 201);
         });
     }
@@ -105,7 +106,7 @@ class ProductController extends Controller
     // ៤. ទាញយក Detail តាម ID (សម្រាប់ Admin Edit)
     public function show(string $id)
     {
-        $product = Product::with(['categories', 'brand','images', 'specs'])->findOrFail($id);
+        $product = Product::with(['categories', 'brand', 'images', 'specs'])->findOrFail($id);
         return $this->sendResponse(new ProductResource($product), 'Product fetched.');
     }
 
@@ -126,7 +127,7 @@ class ProductController extends Controller
             'product_series_id' => 'nullable|exists:product_series,id',
             'warranty_id'       => 'nullable|exists:warranties,id',
             'is_active'         => 'boolean',
-            'is_serialized' => 'boolean',
+            'is_serialized'     => 'boolean',
         ]);
 
         return DB::transaction(function () use ($request, $product, $validatedData) {
@@ -134,12 +135,18 @@ class ProductController extends Controller
                 $validatedData['slug'] = $this->generateUniqueSlug($request->name, $product->id);
             }
 
-            // 🌟 ឆែកមើលថាតើមានការបញ្ជូនកែប្រែ Categories ដែរឬទេ
+            // 🌟 ធានាថា Boolean ត្រូវបាន Convert ត្រឹមត្រូវ (ការពារបញ្ហាបញ្ជូនតម្លៃមកជាអក្សរ "true" ឬ "false" ពី Axios)
+            if ($request->has('is_active')) {
+                $validatedData['is_active'] = $request->boolean('is_active');
+            }
+            if ($request->has('is_serialized')) {
+                $validatedData['is_serialized'] = $request->boolean('is_serialized');
+            }
+
+            // ឆែកមើលថាតើមានការបញ្ជូនកែប្រែ Categories ដែរឬទេ
             if (isset($validatedData['category_ids'])) {
                 $categoryIds = $validatedData['category_ids'];
                 unset($validatedData['category_ids']);
-
-                // Update ទំនាក់ទំនងក្នុង Pivot Table
                 $product->categories()->sync($categoryIds);
             }
 
