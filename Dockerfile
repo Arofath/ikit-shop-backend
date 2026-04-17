@@ -1,7 +1,6 @@
-# ប្តូរមកប្រើ PHP ជំនាន់ 8.4 ឲ្យត្រូវនឹងតម្រូវការរបស់ Laravel ថ្មី
 FROM php:8.4-cli
 
-# ដំឡើង Tools និង Packages ដែលចាំបាច់
+# ដំឡើង Tools ផ្សេងៗ
 RUN apt-get update && apt-get install -y \
     unzip \
     git \
@@ -9,18 +8,22 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# ដំឡើង pdo_mysql និង zip
 RUN docker-php-ext-install pdo_mysql zip
 
-# កំណត់ទីតាំងការងារក្នុង Docker
 WORKDIR /app
 
-# ចម្លងកូដ Project ទាំងអស់
-COPY . .
+# ==========================================
+# 🌟 ចំណុចសំខាន់ដែលធ្វើឲ្យ Deploy លឿន
+# ==========================================
+# ១. ចម្លងតែឯកសារចាំបាច់សម្រាប់ Composer សិន
+COPY composer.json composer.lock* ./
 
-# ដំឡើង Composer 
+# ២. ដំឡើង Composer (វានឹងចងចាំទុកជារៀងរហូត លុះត្រាតែអ្នកថែម Package ថ្មី)
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-RUN composer install --no-dev --optimize-autoloader
+RUN composer install --no-dev --optimize-autoloader --no-scripts
+
+# ៣. ចម្លងកូដទាំងអស់ (Controllers, Routes, Views...) ចូលតាមក្រោយ
+COPY . .
 
 # ផ្តល់សិទ្ធិ
 RUN chmod -R 777 storage bootstrap/cache
