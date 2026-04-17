@@ -30,7 +30,7 @@ class ProductStockMovementResource extends JsonResource
             'cost_price'       => $this->cost_price ? number_format($this->cost_price, 2) : null,
             'reference_number' => $this->reference_number,
             'note'             => $this->note,
-            'date'             => $this->created_at->format('Y-m-d H:i:s'),
+            'date'             => $this->created_at->format('Y-m-d H:i:s') ? $this->created_at->toIso8601String() : null,
         ];
     }
 }

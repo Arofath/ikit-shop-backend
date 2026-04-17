@@ -57,7 +57,7 @@ class ProductResource extends JsonResource
             'warranty'       => $this->whenLoaded('warranty'),
             'product_series' => $this->whenLoaded('productSeries'),
             'specs'          => ProductSpecResource::collection($this->whenLoaded('specs')),
-
+            'is_serialized' => (bool) $this->is_serialized,
             'is_active'      => (bool) $this->is_active,
             'created_at'     => $this->created_at->format('Y-m-d H:i:s'),
             'updated_at'     => $this->updated_at->format('Y-m-d H:i:s'),

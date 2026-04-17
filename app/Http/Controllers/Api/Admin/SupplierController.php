@@ -12,6 +12,7 @@ class SupplierController extends Controller
     public function index(Request $request)
     {
         $suppliers = Supplier::query()
+            ->withCount('stockMovements')
             ->when($request->filled('search'), function ($q) use ($request) {
                 // រុំ function ទប់កុំឱ្យ orWhere ប៉ះពាល់លក្ខខណ្ឌផ្សេងទៀត
                 $q->where(function ($inner) use ($request) {
