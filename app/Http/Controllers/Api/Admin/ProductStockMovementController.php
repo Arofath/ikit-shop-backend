@@ -17,7 +17,7 @@ class ProductStockMovementController extends Controller
     // ១. មើលប្រវត្តិស្តុកទាំងអស់
     public function index(Request $request)
     {
-        $query = ProductStockMovement::with(['product', 'supplier']);
+        $query = ProductStockMovement::with(['product.images', 'supplier']);
 
         if ($request->filled('product_id')) {
             $query->where('product_id', $request->product_id);
