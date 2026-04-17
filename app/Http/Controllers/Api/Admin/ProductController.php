@@ -16,7 +16,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $products = Product::query()
-            ->with(['categories', 'brand', 'thumbnail'])
+            ->with(['categories', 'brand', 'thumbnail', "serials"])
             ->when($request->filled('search'), function ($q) use ($request) {
                 $q->where(function ($inner) use ($request) {
                     $inner->where('name', 'like', "%{$request->search}%")

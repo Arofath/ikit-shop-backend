@@ -58,6 +58,10 @@ class ProductResource extends JsonResource
             'product_series' => $this->whenLoaded('productSeries'),
             'specs'          => ProductSpecResource::collection($this->whenLoaded('specs')),
             'is_serialized' => (bool) $this->is_serialized,
+            'available_serials' => $this->whenLoaded('serials', function () {
+                // ច្រោះយកតែ AVAILABLE
+                return $this->serials->where('status', 'AVAILABLE')->pluck('serial_number');
+            }),
             'is_active'      => (bool) $this->is_active,
             'created_at'     => $this->created_at->format('Y-m-d H:i:s'),
             'updated_at'     => $this->updated_at->format('Y-m-d H:i:s'),
