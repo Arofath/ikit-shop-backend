@@ -43,7 +43,18 @@ class ProductStockMovementController extends Controller
             'supplier_id'      => 'required_if:type,IN|nullable|exists:suppliers,id',
             'reference_number' => 'nullable|string|max:50',
             'type'             => ['required', Rule::in(['IN', 'OUT', 'ADJUST'])],
-            'quantity'         => 'required|integer|min:1',
+            'quantity'         => [
+                'required',
+                'integer',
+                function ($attribute, $value, $fail) use ($request) {
+                    if ($request->type === 'ADJUST' && $value === 0) {
+                        $fail('For ADJUST, quantity cannot be 0. Use a positive number to add, or negative to deduct.');
+                    } elseif ($request->type !== 'ADJUST' && $value < 1) {
+                        $fail('For IN and OUT, quantity must be at least 1.');
+                    }
+                },
+            ],
+            
             'cost_price'       => 'required_if:type,IN|nullable|numeric|min:0',
             'note'             => 'nullable|string',
             // 🌟 ប្តូរ serials ទៅជា nullable សិន ព្រោះយើងនឹងឆែកវានៅខាងក្រោម
