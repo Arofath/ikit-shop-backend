@@ -64,9 +64,8 @@ class ProductStockMovementController extends Controller
         $product = Product::findOrFail($data['product_id']);
 
         if ($product->is_serialized) {
-            // មិនទាមទារ Serial សម្រាប់ ADJUST ទេ ព្រោះយើងគ្រាន់តែកែតម្រូវលេខ
             if (in_array($data['type'], ['IN', 'OUT'])) {
-                if (empty($data['serials']) || count($data['serials']) !== (int) $data['quantity']) {
+                if (empty($data['serials']) || count($data['serials']) !== (int) abs($data['quantity'])) {
                     return $this->sendError('Validation Error.', ['The number of serials must exactly match the quantity for serialized products.'], 422);
                 }
             }
@@ -79,26 +78,28 @@ class ProductStockMovementController extends Controller
         try {
             $currentStock = $this->calculateStock($product->id);
 
-            // 🌟 ១. គណនាការផ្លាស់ប្តូរ (Change) ឱ្យបានច្បាស់លាស់មុននឹង Save
+            // 🌟 Fixed Logic: No more 'clone'. Simple math.
+            $inputQuantity = (int) $data['quantity'];
             $change = 0;
+            
             if ($data['type'] === 'IN') {
-                $change = clone $data['quantity']; // បូកបញ្ជូល
+                $change = abs($inputQuantity); // Force positive
             } elseif ($data['type'] === 'OUT') {
-                $change = -$data['quantity']; // ដកចេញ (ព្រោះ Frontend បញ្ជូនលេខវិជ្ជមាន)
+                $change = -abs($inputQuantity); // Force negative
             } elseif ($data['type'] === 'ADJUST') {
-                $change = clone $data['quantity']; // យកតាមអ្វីដែលវាយចូល (អាច + ឬ -)
+                $change = $inputQuantity; // Can be + or - directly from input
             }
 
-            // គណនា Balance ទុកជាមុន
+            // Ensure the saved quantity reflects the true movement direction
+            $data['quantity'] = $change; 
+            
             $data['balance_after'] = $currentStock + $change;
 
-            // 🌟 ២. ការពារកុំឱ្យកាត់ស្តុករហូតដល់អស់ (Negative Balance) ដែលជាដើមហេតុធ្វើឱ្យ Error 500
             if ($data['balance_after'] < 0) {
                 DB::rollBack();
                 return $this->sendError('Stock insufficient.', ["Cannot deduct below 0. Current available stock is {$currentStock}."], 422);
             }
 
-            // ឆែក Serial ពេលលក់ចេញ (OUT)
             if ($data['type'] === 'OUT' && $product->is_serialized) {
                 $validSerials = ProductSerial::whereIn('serial_number', $data['serials'])
                     ->where('product_id', $product->id)
@@ -111,10 +112,8 @@ class ProductStockMovementController extends Controller
                 }
             }
 
-            // បង្កើត Stock Movement Record
             $movement = ProductStockMovement::create($data);
 
-            // ចាត់ចែង Serial Numbers (សម្រាប់ IN នឹង OUT)
             if ($product->is_serialized && !empty($data['serials'])) {
                 if ($data['type'] === 'IN') {
                     $serialData = [];
@@ -149,7 +148,6 @@ class ProductStockMovementController extends Controller
             );
         } catch (\Exception $e) {
             DB::rollBack();
-            // បង្ហាញ Error Message ច្បាស់ៗដើម្បីស្រួល Debug
             return $this->sendError('Transaction Failed.', [$e->getMessage()], 500);
         }
     }

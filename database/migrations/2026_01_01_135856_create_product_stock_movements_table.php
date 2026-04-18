@@ -19,7 +19,7 @@ return new class extends Migration
             $table->enum('type', ['IN', 'OUT', 'ADJUST']);
 
             // ប្រើ unsignedInteger ដើម្បីការពារការបញ្ចូលលេខអវិជ្ជមាន
-            $table->unsignedInteger('quantity');
+            $table->integer('quantity');
 
             $table->decimal('cost_price', 12, 2)->nullable();
 
