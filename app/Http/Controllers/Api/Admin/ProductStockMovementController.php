@@ -221,7 +221,7 @@ class ProductStockMovementController extends Controller
     // ៥. មុខងារពិសេស៖ របាយការណ៍សង្ខេប (Stock Summary Report) - 🌟 Optimized ខ្លាំងបំផុត
     public function stockReport()
     {
-        // ១. ទាញយកបញ្ជីទំនិញដែលជិតអស់ស្តុក (រក្សាទុកដដែល)
+        // ១. ទាញយកបញ្ជីទំនិញដែលជិតអស់ស្តុក
         $lowStockProducts = Product::select('products.*')
             ->selectSub(function ($query) {
                 $query->selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0)")
@@ -229,20 +229,21 @@ class ProductStockMovementController extends Controller
                     ->whereColumn('product_stock_movements.product_id', 'products.id');
             }, 'current_stock')
             ->having('current_stock', '<=', 5)
-            ->with(['images']) // ភ្ជាប់មកជាមួយរូបភាពដើម្បីបង្ហាញនៅ Frontend
+            ->with(['images']) // ភ្ជាប់មកជាមួយរូបភាព
             ->get();
 
         // 🌟 ២. គណនាសកម្មភាពប្រចាំថ្ងៃ (Today's In & Out)
-        $today = now()->toDateString(); // យកកាលបរិច្ឆេទថ្ងៃនេះ (ឧ. 2026-04-18)
+        // ប្រើប្រាស់ \Carbon\Carbon::today() ដើម្បីធានាថាវាចាប់យកថ្ងៃនេះបានត្រឹមត្រូវ
+        $today = \Carbon\Carbon::today()->toDateString();
 
         $todayMovements = ProductStockMovement::whereDate('created_at', $today)
             ->selectRaw("
-                SUM(CASE WHEN type = 'IN' THEN quantity ELSE 0 END) as today_in,
-                SUM(CASE WHEN type = 'OUT' THEN quantity ELSE 0 END) as today_out
+                SUM(CASE WHEN type = 'IN' THEN ABS(quantity) ELSE 0 END) as today_in,
+                SUM(CASE WHEN type = 'OUT' THEN ABS(quantity) ELSE 0 END) as today_out
             ")
             ->first();
 
-        // ៣. បោះទិន្នន័យទាំងអស់ត្រឡប់ទៅ Frontend វិញ
+        // ៣. បោះទិន្នន័យត្រឡប់ទៅ Frontend
         return $this->sendResponse([
             'low_stock_items' => $lowStockProducts,
             'today_in'        => (int) ($todayMovements->today_in ?? 0),
