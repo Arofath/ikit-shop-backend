@@ -19,12 +19,30 @@ class ProductStockMovementController extends Controller
     {
         $query = ProductStockMovement::with(['product.images', 'supplier']);
 
+        // 1. Filter តាម Product ID
         if ($request->filled('product_id')) {
             $query->where('product_id', $request->product_id);
         }
 
+        // 2. Filter តាម Type (IN, OUT, ADJUST)
         if ($request->filled('type')) {
             $query->where('type', $request->type);
+        }
+
+        // 🌟 3. បន្ថែមមុខងារ Search ថ្មីនៅទីនេះ
+        if ($request->filled('search')) {
+            $searchTerm = $request->search;
+
+            // ប្រើ (function($q)) ដើម្បីចងលក្ខខណ្ឌ Group ជាវង់ក្រចក (...) កុំឱ្យវាជាន់ជាមួយ Filter ខាងលើ
+            $query->where(function ($q) use ($searchTerm) {
+                // ស្វែងរកតាមលេខយោង (Reference Number) ក្នុង Table នេះផ្ទាល់
+                $q->where('reference_number', 'like', '%' . $searchTerm . '%')
+                    // ឬ ស្វែងរកតាម ឈ្មោះ (Name) ឬ SKU នៅក្នុង Table ផលិតផល (Product Relationship)
+                    ->orWhereHas('product', function ($productQuery) use ($searchTerm) {
+                        $productQuery->where('name', 'like', '%' . $searchTerm . '%')
+                            ->orWhere('sku', 'like', '%' . $searchTerm . '%');
+                    });
+            });
         }
 
         $movements = $query->latest()->paginate($request->get('limit', 15));
