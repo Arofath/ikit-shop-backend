@@ -168,8 +168,12 @@ class ProductStockMovementController extends Controller
             ->where('created_at', '>', $movement->created_at)
             ->exists();
 
-        if (!$isLatest) {
-            return $this->sendError('Action Denied.', ['Only the latest record can be deleted to maintain balance integrity.'], 403);
+if (!$isLatest) {
+            return $this->sendError(
+                'Cannot Delete Old Record', 
+                ['You can only delete the most recent movement for this product. To fix an old mistake, please use the ADJUST function.'], 
+                403
+            );
         }
 
         DB::beginTransaction();
