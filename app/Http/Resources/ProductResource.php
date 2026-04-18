@@ -63,6 +63,7 @@ class ProductResource extends JsonResource
                 return $this->serials->where('status', 'AVAILABLE')->pluck('serial_number');
             }),
             'is_active'      => (bool) $this->is_active,
+            'current_stock'    => (int) ($this->current_stock ?? 0),
             'created_at'     => $this->created_at->format('Y-m-d H:i:s'),
             'updated_at'     => $this->updated_at->format('Y-m-d H:i:s'),
         ];
