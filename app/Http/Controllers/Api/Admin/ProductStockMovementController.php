@@ -32,16 +32,16 @@ class ProductStockMovementController extends Controller
         // 🌟 3. បន្ថែមមុខងារ Search ថ្មីនៅទីនេះ
         if ($request->filled('search')) {
             $searchTerm = $request->search;
-
+            
             // ប្រើ (function($q)) ដើម្បីចងលក្ខខណ្ឌ Group ជាវង់ក្រចក (...) កុំឱ្យវាជាន់ជាមួយ Filter ខាងលើ
             $query->where(function ($q) use ($searchTerm) {
                 // ស្វែងរកតាមលេខយោង (Reference Number) ក្នុង Table នេះផ្ទាល់
                 $q->where('reference_number', 'like', '%' . $searchTerm . '%')
-                    // ឬ ស្វែងរកតាម ឈ្មោះ (Name) ឬ SKU នៅក្នុង Table ផលិតផល (Product Relationship)
-                    ->orWhereHas('product', function ($productQuery) use ($searchTerm) {
-                        $productQuery->where('name', 'like', '%' . $searchTerm . '%')
-                            ->orWhere('sku', 'like', '%' . $searchTerm . '%');
-                    });
+                  // ឬ ស្វែងរកតាម ឈ្មោះ (Name) ឬ SKU នៅក្នុង Table ផលិតផល (Product Relationship)
+                  ->orWhereHas('product', function ($productQuery) use ($searchTerm) {
+                      $productQuery->where('name', 'like', '%' . $searchTerm . '%')
+                                   ->orWhere('sku', 'like', '%' . $searchTerm . '%');
+                  });
             });
         }
 
@@ -186,7 +186,7 @@ class ProductStockMovementController extends Controller
             ->where('created_at', '>', $movement->created_at)
             ->exists();
 
-if (!$isLatest) {
+        if (!$isLatest) {
             return $this->sendError(
                 'Cannot Delete Old Record', 
                 ['You can only delete the most recent movement for this product. To fix an old mistake, please use the ADJUST function.'], 
@@ -221,7 +221,7 @@ if (!$isLatest) {
     // ៥. មុខងារពិសេស៖ របាយការណ៍សង្ខេប (Stock Summary Report) - 🌟 Optimized ខ្លាំងបំផុត
     public function stockReport()
     {
-        // ប្រើប្រាស់ Subquery នៅក្នុង Database ផ្ទាល់ កាត់បន្ថយ N+1 Query
+        // ១. ទាញយកបញ្ជីទំនិញដែលជិតអស់ស្តុក (រក្សាទុកដដែល)
         $lowStockProducts = Product::select('products.*')
             ->selectSub(function ($query) {
                 $query->selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0)")
@@ -229,11 +229,24 @@ if (!$isLatest) {
                     ->whereColumn('product_stock_movements.product_id', 'products.id');
             }, 'current_stock')
             ->having('current_stock', '<=', 5)
-            ->with(['category', 'brand']) // ភ្ជាប់មកជាមួយបើចាំបាច់
+            ->with(['images']) // ភ្ជាប់មកជាមួយរូបភាពដើម្បីបង្ហាញនៅ Frontend
             ->get();
 
+        // 🌟 ២. គណនាសកម្មភាពប្រចាំថ្ងៃ (Today's In & Out)
+        $today = now()->toDateString(); // យកកាលបរិច្ឆេទថ្ងៃនេះ (ឧ. 2026-04-18)
+
+        $todayMovements = ProductStockMovement::whereDate('created_at', $today)
+            ->selectRaw("
+                SUM(CASE WHEN type = 'IN' THEN quantity ELSE 0 END) as today_in,
+                SUM(CASE WHEN type = 'OUT' THEN quantity ELSE 0 END) as today_out
+            ")
+            ->first();
+
+        // ៣. បោះទិន្នន័យទាំងអស់ត្រឡប់ទៅ Frontend វិញ
         return $this->sendResponse([
-            'low_stock_items' => $lowStockProducts
+            'low_stock_items' => $lowStockProducts,
+            'today_in'        => (int) ($todayMovements->today_in ?? 0),
+            'today_out'       => (int) ($todayMovements->today_out ?? 0)
         ], 'Stock report retrieved.');
     }
 
