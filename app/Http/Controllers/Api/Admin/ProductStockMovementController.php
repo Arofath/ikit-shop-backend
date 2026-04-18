@@ -261,4 +261,45 @@ class ProductStockMovementController extends Controller
             ELSE 0 END) as total")
             ->value('total') ?? 0;
     }
+
+    // 🌟 អនុគមន៍ថ្មី៖ ទាញយកបញ្ជីការទិញចូល (IN) ដែលមិនទាន់បញ្ចូល Serial គ្រប់ចំនួន
+    public function pendingSerials(Request $request)
+    {
+        // ស្វែងរកតែ Movement ប្រភេទ 'IN' សម្រាប់ទំនិញដែលមាន Serial
+        $pendingMovements = ProductStockMovement::with(['product' => function ($q) {
+            // ទាញយកតែឈ្មោះ និង SKU របស់ Product ប៉ុណ្ណោះឱ្យលឿន
+            $q->select('id', 'name', 'sku', 'is_serialized');
+        }])
+            ->where('type', 'IN')
+            // លក្ខខណ្ឌ៖ ត្រូវតែជា Product ដែលមាន Serial
+            ->whereHas('product', function ($q) {
+                $q->where('is_serialized', true);
+            })
+            // លក្ខខណ្ឌ៖ ចំនួនទិញចូល (quantity) ត្រូវតែធំជាង ចំនួន Serial ដែលមានរួច
+            ->whereRaw('quantity > (SELECT COUNT(*) FROM product_serials WHERE product_serials.initial_movement_id = product_stock_movements.id)')
+            ->latest()
+            ->get()
+            ->map(function ($movement) {
+                // រាប់ចំនួន Serial ដែលបានបញ្ចូលរួច សម្រាប់ Movement នេះ
+                $enteredCount = ProductSerial::where('initial_movement_id', $movement->id)->count();
+                $missingCount = $movement->quantity - $enteredCount;
+
+                return [
+                    'id'               => $movement->id,
+                    'reference_number' => $movement->reference_number,
+                    'created_at'       => $movement->created_at,
+                    'product_id'       => $movement->product->id,
+                    'product_name'     => $movement->product->name,
+                    'product_sku'      => $movement->product->sku,
+                    'quantity_in'      => $movement->quantity,
+                    'entered_serials'  => $enteredCount,
+                    'missing_serials'  => $missingCount,
+                ];
+            });
+
+        return $this->sendResponse(
+            $pendingMovements,
+            'Pending serials retrieved successfully.'
+        );
+    }
 }
