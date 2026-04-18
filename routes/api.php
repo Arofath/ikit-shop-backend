@@ -131,6 +131,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             // 🌟 ត្រូវដាក់ Route ពិសេស (Static Route) នៅពីលើ Route ដែលមាន {id} ជានិច្ច
             Route::get('/report', [ProductStockMovementController::class, 'stockReport']);
             Route::get('/pending-serials', [ProductStockMovementController::class, 'pendingSerials']);
+            Route::post('/resolve-pending-serials', [ProductStockMovementController::class, 'resolvePendingSerials']);
 
             Route::get('/{id}', [ProductStockMovementController::class, 'show']);   // មើលព័ត៌មានលម្អិត ១ record
 

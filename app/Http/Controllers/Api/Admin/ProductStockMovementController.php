@@ -302,4 +302,53 @@ class ProductStockMovementController extends Controller
             'Pending serials retrieved successfully.'
         );
     }
+
+    // 🌟 អនុគមន៍សម្រាប់បញ្ជូល Serial តាមក្រោយ (Pending)
+    public function resolvePendingSerials(Request $request)
+    {
+        // 1. ត្រួតពិនិត្យទិន្នន័យដែល Frontend បោះមក
+        $request->validate([
+            'movement_id' => 'required|exists:product_stock_movements,id',
+            'product_id'  => 'required|exists:products,id',
+            'serials'     => 'required|array',
+            'serials.*'   => 'required|string|unique:product_serials,serial_number' // ការពារកុំឱ្យជាន់ Serial ក្នុង DB
+        ], [
+            'serials.*.unique' => 'One or more scanned serial numbers already exist in the system.'
+        ]);
+
+        $movement = ProductStockMovement::findOrFail($request->movement_id);
+
+        if ($movement->type !== 'IN') {
+            return $this->sendError('Only IN movements can have pending serials resolved.');
+        }
+
+        // 2. ឆែកមើលថាតើនៅខ្វះប៉ុន្មានពិតប្រាកដ
+        $enteredCount = \App\Models\ProductSerial::where('initial_movement_id', $movement->id)->count();
+        $missingCount = $movement->quantity - $enteredCount;
+
+        if (count($request->serials) > $missingCount) {
+            return $this->sendError("You provided too many serials. Only {$missingCount} items are missing.");
+        }
+
+        \DB::beginTransaction();
+        try {
+            // 3. បញ្ចូល Serial នីមួយៗទៅក្នុងតារាង product_serials
+            foreach ($request->serials as $serialNumber) {
+                \App\Models\ProductSerial::create([
+                    'product_id'          => $request->product_id,
+                    'serial_number'       => $serialNumber,
+                    'status'              => 'AVAILABLE',
+                    'initial_movement_id' => $movement->id,
+                    'current_movement_id' => $movement->id, // កំពុងស្ថិតក្នុង Movement នេះ
+                    'purchase_price'      => $movement->cost_price, // យកតម្លៃទិញចូលពី Movement
+                ]);
+            }
+            \DB::commit();
+
+            return $this->sendResponse([], 'Pending serials successfully resolved.');
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return $this->sendError('Failed to resolve pending serials: ' . $e->getMessage());
+        }
+    }
 }
