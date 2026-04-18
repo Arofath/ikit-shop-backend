@@ -123,11 +123,15 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::apiResource('product-series', ProductSeriesController::class);
 
         // Stock Movement Routes
+        // Stock Movement Routes
         Route::prefix('stock-movements')->group(function () {
             Route::get('/', [ProductStockMovementController::class, 'index']);      // មើលប្រវត្តិស្តុកទាំងអស់
             Route::post('/', [ProductStockMovementController::class, 'store']);     // បញ្ចូលស្តុក (IN/OUT/ADJUST)
-            Route::get('/{id}', [ProductStockMovementController::class, 'show']);   // មើលព័ត៌មានលម្អិត ១ record
+
+            // 🌟 ត្រូវដាក់ Route ពិសេស (Static Route) នៅពីលើ Route ដែលមាន {id} ជានិច្ច
             Route::get('/report', [ProductStockMovementController::class, 'stockReport']);
+
+            Route::get('/{id}', [ProductStockMovementController::class, 'show']);   // មើលព័ត៌មានលម្អិត ១ record
 
             // លុបបានតែ record ចុងក្រោយ (សម្រាប់តែ Super Admin)
             Route::delete('/{productStockMovement}', [ProductStockMovementController::class, 'destroy']);
