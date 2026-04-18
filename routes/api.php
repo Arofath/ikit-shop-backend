@@ -127,6 +127,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::get('/', [ProductStockMovementController::class, 'index']);      // មើលប្រវត្តិស្តុកទាំងអស់
             Route::post('/', [ProductStockMovementController::class, 'store']);     // បញ្ចូលស្តុក (IN/OUT/ADJUST)
             Route::get('/{id}', [ProductStockMovementController::class, 'show']);   // មើលព័ត៌មានលម្អិត ១ record
+            Route::get('/report', [ProductStockMovementController::class, 'stockReport']);
 
             // លុបបានតែ record ចុងក្រោយ (សម្រាប់តែ Super Admin)
             Route::delete('/{productStockMovement}', [ProductStockMovementController::class, 'destroy']);
