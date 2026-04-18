@@ -20,26 +20,34 @@ class ProductSerialResource extends JsonResource
             'status'        => $this->status, // AVAILABLE, SOLD, etc.
             'product'       => [
                 'id'   => $this->product_id,
-                // 🌟 ប្រើ $this->whenLoaded ដើម្បីកុំឱ្យ Error ពេលអត់បាន Eager Load Product
-                'name' => $this->relationLoaded('product') ? $this->product->name : 'N/A',
-                'sku'  => $this->relationLoaded('product') ? $this->product->sku : null, // ថែម SKU បន្តិចក៏ល្អ
+                // 🌟 ការពារ Error បើ Product ស្មើ null
+                'name' => ($this->relationLoaded('product') && $this->product) ? $this->product->name : 'N/A',
+                'sku'  => ($this->relationLoaded('product') && $this->product) ? $this->product->sku : null,
             ],
             // ព័ត៌មាននៃការទិញចូល
             'purchase_info' => $this->whenLoaded('stockMovement', function () {
                 return [
-                    'date'             => $this->created_at->format('Y-m-d H:i:s'),
-                    'reference_number' => $this->stockMovement->reference_number ?? 'N/A',
-                    // 🌟 ប្រើ Optional Helper (?->) ការពារការ Error បើអត់មាន Supplier
-                    'supplier_name'    => $this->stockMovement->supplier?->name ?? 'N/A',
+                    // 🌟 ឆែកមើលបើមាន created_at ទើប format
+                    'date'             => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : 'N/A',
+                    // 🌟 ដាក់ ?-> ការពារ Error បើអត់មាន stockMovement
+                    'reference_number' => $this->stockMovement?->reference_number ?? 'N/A',
+                    'supplier_name'    => $this->stockMovement?->supplier?->name ?? 'N/A',
                 ];
             }),
             // ព័ត៌មាននៃការលក់ចេញ (បង្ហាញតែពេលលក់រួច)
-            'sale_info' => $this->sold_movement_id ? clone $this->whenLoaded('soldMovement', function () {
+            'sale_info' => $this->whenLoaded('soldMovement', function () {
+                // បើមិនទាន់លក់ចេញទេ (គ្មាន sold_movement_id) ឱ្យចេញ null
+                if (!$this->sold_movement_id) {
+                    return null;
+                }
+
                 return [
-                    'date'             => $this->updated_at->format('Y-m-d H:i:s'),
-                    'reference_number' => $this->soldMovement->reference_number ?? 'N/A',
+                    // 🌟 ឆែកមើលបើមាន updated_at ទើប format
+                    'date'             => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : 'N/A',
+                    // 🌟 ដាក់ ?-> ការពារ Error
+                    'reference_number' => $this->soldMovement?->reference_number ?? 'N/A',
                 ];
-            }) : null,
+            }),
         ];
     }
 }
