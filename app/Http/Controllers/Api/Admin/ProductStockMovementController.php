@@ -339,8 +339,6 @@ class ProductStockMovementController extends Controller
                     'serial_number'       => $serialNumber,
                     'status'              => 'AVAILABLE',
                     'initial_movement_id' => $movement->id,
-                    'current_movement_id' => $movement->id, // កំពុងស្ថិតក្នុង Movement នេះ
-                    'purchase_price'      => $movement->cost_price, // យកតម្លៃទិញចូលពី Movement
                 ]);
             }
             \DB::commit();
