@@ -229,23 +229,36 @@ class ProductController extends Controller
 
     public function getStats()
     {
-        // រាប់ចំនួន Product សរុប និង Product ដែលកំពុង Active
+        // ១. រាប់ចំនួនសរុប និង ចំនួនដែលកំពុង Active
         $totalProducts = Product::count();
         $activeProducts = Product::where('is_active', true)->count();
 
-        // 🌟 ដោយសារយើងមិនទាន់ភ្ជាប់ប្រព័ន្ធ Stock Movement (អត់ទាន់មាន Quantity)
-        // យើងកំណត់វាទៅជា 0 សិន ដើម្បីកុំឱ្យលោត Error 500។
-        $lowStock = 0;
-        $outOfStock = 0;
+        // ២. បង្កើត Subquery សម្រាប់គណនាស្តុកបច្ចុប្បន្នរបស់ទំនិញនីមួយៗ
+        $stockSubquery = Product::select('id')->selectSub(function ($query) {
+            $query->selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0)")
+                ->from('product_stock_movements')
+                ->whereColumn('product_stock_movements.product_id', 'products.id');
+        }, 'current_stock');
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'total_products' => $totalProducts,
-                'active_products' => $activeProducts,
-                'low_stock' => $lowStock,
-                'out_of_stock' => $outOfStock,
-            ]
-        ]);
+        // ៣. រាប់ចំនួនទំនិញដែល Low Stock (មានស្តុកចន្លោះពី ១ ដល់ ៥)
+        $lowStock = DB::query()
+            ->fromSub($stockSubquery, 'stock_data')
+            ->where('current_stock', '>', 0)
+            ->where('current_stock', '<=', 5)
+            ->count();
+
+        // ៤. រាប់ចំនួនទំនិញដែល Out of Stock (អស់ស្តុក ស្មើ ០ ឬ ក្រោម ០)
+        $outOfStock = DB::query()
+            ->fromSub($stockSubquery, 'stock_data')
+            ->where('current_stock', '<=', 0)
+            ->count();
+
+        // បោះទិន្នន័យត្រឡប់ទៅឱ្យ Vue វិញ
+        return $this->sendResponse([
+            'total_products'  => $totalProducts,
+            'active_products' => $activeProducts,
+            'low_stock'       => $lowStock,
+            'out_of_stock'    => $outOfStock,
+        ], 'Product stats retrieved successfully.');
     }
 }
