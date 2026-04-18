@@ -16,7 +16,15 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $products = Product::query()
-            ->with(['categories', 'brand', 'thumbnail', "serials"])
+            // 🌟 ១. ត្រូវប្រាកដថា Select យកទិន្នន័យពី Table products ទាំងអស់សិន
+            ->select('products.*')
+            // 🌟 ២. បន្ថែមការគណនាស្តុក (current_stock) ដោយបូកដកទិន្នន័យពី product_stock_movements
+            ->selectSub(function ($query) {
+                $query->selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0)")
+                    ->from('product_stock_movements')
+                    ->whereColumn('product_stock_movements.product_id', 'products.id');
+            }, 'current_stock')
+            ->with(['categories', 'brand', 'thumbnail', 'serials'])
             ->when($request->filled('search'), function ($q) use ($request) {
                 $q->where(function ($inner) use ($request) {
                     $inner->where('name', 'like', "%{$request->search}%")
@@ -28,7 +36,6 @@ class ProductController extends Controller
                     $query->where('slug', $request->series);
                 });
             })
-            // 🌟 កែប្រែពី where('category_id') ទៅជា whereHas សម្រាប់ Many-to-Many
             ->when($request->filled('category_id'), function ($q) use ($request) {
                 $q->whereHas('categories', function ($query) use ($request) {
                     $query->where('categories.id', $request->category_id);
