@@ -57,24 +57,20 @@ class ProductStockMovementController extends Controller
             
             'cost_price'       => 'required_if:type,IN|nullable|numeric|min:0',
             'note'             => 'nullable|string',
-            // 🌟 ប្តូរ serials ទៅជា nullable សិន ព្រោះយើងនឹងឆែកវានៅខាងក្រោម
             'serials'          => 'nullable|array',
             'serials.*'        => 'string|distinct',
         ]);
 
-        // ទាញយក Product មកសិន ដើម្បីឆែកមើលលក្ខខណ្ឌ
         $product = Product::findOrFail($data['product_id']);
 
-        // 🌟 ១. លក្ខខណ្ឌថ្មី៖ ឆែកមើល Serial ផ្អែកលើប្រភេទ Product
         if ($product->is_serialized) {
+            // មិនទាមទារ Serial សម្រាប់ ADJUST ទេ ព្រោះយើងគ្រាន់តែកែតម្រូវលេខ
             if (in_array($data['type'], ['IN', 'OUT'])) {
-                // បើមាន Serial ត្រូវតែបញ្ចូល Serial ឱ្យស្មើនឹង Quantity
                 if (empty($data['serials']) || count($data['serials']) !== (int) $data['quantity']) {
                     return $this->sendError('Validation Error.', ['The number of serials must exactly match the quantity for serialized products.'], 422);
                 }
             }
         } else {
-            // 🌟 បើទំនិញនេះគ្មាន Serial ទេ មិនបាច់ខ្វល់ពីវាឡើយ (លុបចោលដើម្បីសុវត្ថិភាព)
             $data['serials'] = [];
         }
 
@@ -83,34 +79,42 @@ class ProductStockMovementController extends Controller
         try {
             $currentStock = $this->calculateStock($product->id);
 
-            // ឆែកលក្ខខណ្ឌពេលលក់ចេញ (OUT)
-            if ($data['type'] === 'OUT') {
-                if ($currentStock < $data['quantity']) {
+            // 🌟 ១. គណនាការផ្លាស់ប្តូរ (Change) ឱ្យបានច្បាស់លាស់មុននឹង Save
+            $change = 0;
+            if ($data['type'] === 'IN') {
+                $change = clone $data['quantity']; // បូកបញ្ជូល
+            } elseif ($data['type'] === 'OUT') {
+                $change = -$data['quantity']; // ដកចេញ (ព្រោះ Frontend បញ្ជូនលេខវិជ្ជមាន)
+            } elseif ($data['type'] === 'ADJUST') {
+                $change = clone $data['quantity']; // យកតាមអ្វីដែលវាយចូល (អាច + ឬ -)
+            }
+
+            // គណនា Balance ទុកជាមុន
+            $data['balance_after'] = $currentStock + $change;
+
+            // 🌟 ២. ការពារកុំឱ្យកាត់ស្តុករហូតដល់អស់ (Negative Balance) ដែលជាដើមហេតុធ្វើឱ្យ Error 500
+            if ($data['balance_after'] < 0) {
+                DB::rollBack();
+                return $this->sendError('Stock insufficient.', ["Cannot deduct below 0. Current available stock is {$currentStock}."], 422);
+            }
+
+            // ឆែក Serial ពេលលក់ចេញ (OUT)
+            if ($data['type'] === 'OUT' && $product->is_serialized) {
+                $validSerials = ProductSerial::whereIn('serial_number', $data['serials'])
+                    ->where('product_id', $product->id)
+                    ->where('status', 'AVAILABLE')
+                    ->count();
+
+                if ($validSerials !== count($data['serials'])) {
                     DB::rollBack();
-                    return $this->sendError('Stock insufficient.', ["Current available: {$currentStock}"], 422);
-                }
-
-                // 🌟 ឆែក Serial សម្រាប់តែទំនិញដែលមាន Serial ប៉ុណ្ណោះ
-                if ($product->is_serialized) {
-                    $validSerials = ProductSerial::whereIn('serial_number', $data['serials'])
-                        ->where('product_id', $product->id)
-                        ->where('status', 'AVAILABLE')
-                        ->count();
-
-                    if ($validSerials !== count($data['serials'])) {
-                        DB::rollBack();
-                        return $this->sendError('Some serial numbers are invalid or already sold.', [], 422);
-                    }
+                    return $this->sendError('Some serial numbers are invalid or already sold.', [], 422);
                 }
             }
 
-            // បង្កើត Stock Movement Record (អនុវត្តសម្រាប់គ្រប់ទំនិញ)
-            $change = ($data['type'] === 'OUT') ? -$data['quantity'] : $data['quantity'];
-            $data['balance_after'] = $currentStock + $change;
-
+            // បង្កើត Stock Movement Record
             $movement = ProductStockMovement::create($data);
 
-            // 🌟 ចាត់ចែង Serial Numbers (ដំណើរការលុះត្រាតែមាន Serial)
+            // ចាត់ចែង Serial Numbers (សម្រាប់ IN នឹង OUT)
             if ($product->is_serialized && !empty($data['serials'])) {
                 if ($data['type'] === 'IN') {
                     $serialData = [];
@@ -145,6 +149,7 @@ class ProductStockMovementController extends Controller
             );
         } catch (\Exception $e) {
             DB::rollBack();
+            // បង្ហាញ Error Message ច្បាស់ៗដើម្បីស្រួល Debug
             return $this->sendError('Transaction Failed.', [$e->getMessage()], 500);
         }
     }
