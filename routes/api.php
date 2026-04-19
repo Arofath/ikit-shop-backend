@@ -1,22 +1,10 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\UserProfileController;
+use App\Http\Controllers\Api\Admin\{UserManagementController, CategoryController, BrandController, ProductController, ProductImageController, ProductSpecController, ProductStockMovementController, SlideshowController, SupplierController, WarrantyController, ProductSerialController, SettingController};
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PublicWarrantyController;
-use App\Http\Controllers\Api\Admin\{
-    UserManagementController,
-    CategoryController,
-    BrandController,
-    ProductController,
-    ProductImageController,
-    ProductSpecController,
-    ProductStockMovementController,
-    SlideshowController,
-    SupplierController,
-    WarrantyController,
-    ProductSerialController,
-};
+use App\Http\Controllers\Api\UserProfileController;
+use Illuminate\Support\Facades\Route;
 
 // =============================================================
 // 1. PUBLIC ROUTES (Guests & Customers)
@@ -117,7 +105,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::delete('product-images/{id}', [ProductImageController::class, 'destroy']);
         Route::patch('product-specs/{spec}', [ProductSpecController::class, 'update']);
         Route::delete('product-specs/{spec}', [ProductSpecController::class, 'destroy']);
-    
+
 
         // Stock Movement Routes
         // Stock Movement Routes
@@ -157,6 +145,13 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
 
             Route::delete('/{id}', [SlideshowController::class, 'destroy']); // លុប Slide
             Route::patch('/{id}/toggle-status', [SlideshowController::class, 'toggleStatus']);
+        });
+
+        // Settings
+        Route::prefix('settings')->group(function () {
+            Route::get('/', [SettingController::class, 'index']);
+            // ប្រើ POST ព្រោះយើងមាន Upload រូបភាព (Logo)
+            Route::post('/', [SettingController::class, 'update']);
         });
     });
 });
