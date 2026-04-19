@@ -23,6 +23,7 @@ class ProductResource extends JsonResource
             'slug'             => $this->slug,
             'sku'              => $this->sku,
             'price'            => (float) $this->price,
+            'cost_price'       => $this->cost_price,
             'discount_percent' => (float) $this->discount_percent,
             'final_price'      => (float) ($this->price - ($this->price * ($this->discount_percent / 100))),
             'description'      => $this->description,

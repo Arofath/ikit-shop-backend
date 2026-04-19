@@ -23,6 +23,7 @@ class Product extends Model
         'warranty_id',
         'product_series_id',
         'price',
+        'cost_price',
         'discount_percent',
         'is_active',
         'is_serialized',
