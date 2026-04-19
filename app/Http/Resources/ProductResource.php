@@ -56,7 +56,6 @@ class ProductResource extends JsonResource
             'categories' => CategoryResource::collection($this->whenLoaded('categories')),
             'brand'          => new BrandResource($this->whenLoaded('brand')),
             'warranty'       => $this->whenLoaded('warranty'),
-            'product_series' => $this->whenLoaded('productSeries'),
             'specs'          => ProductSpecResource::collection($this->whenLoaded('specs')),
             'is_serialized' => (bool) $this->is_serialized,
             'available_serials' => $this->whenLoaded('serials', function () {

@@ -13,13 +13,14 @@ return new class extends Migration
     {
         Schema::create('slideshows', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->uuid('product_series_id')->nullable();
+
+            // 🌟 ប្រើប្រាស់ link_url ជំនួសឱ្យ product_series_id និង Foreign Key
+            $table->string('link_url', 1000)->nullable();
+
             $table->string('image_path');
             $table->integer('position')->default(0);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
-
-            $table->foreign('product_series_id')->references('id')->on('product_series')->nullOnDelete();
         });
     }
 

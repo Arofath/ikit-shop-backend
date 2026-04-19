@@ -15,17 +15,11 @@ class SlideshowResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'         => $this->id,
-            'image_url'  => $this->image_path,
-            'position'   => $this->position,
-            'is_active'  => $this->is_active,
-            'series'     => $this->whenLoaded('series', function () {
-                return [
-                    'id'   => $this->series->id,
-                    'name' => $this->series->name,
-                    'slug' => $this->series->slug,
-                ];
-            }),
+            'id'        => $this->id,
+            'link_url'  => $this->link_url, // 🌟 បន្ថែម link_url
+            'image_url' => $this->image_path,
+            'position'  => $this->position,
+            'is_active' => $this->is_active,
         ];
     }
 }

@@ -21,7 +21,6 @@ class Product extends Model
         'slug',
         'brand_id',
         'warranty_id',
-        'product_series_id',
         'price',
         'cost_price',
         'discount_percent',
@@ -59,10 +58,6 @@ class Product extends Model
     public function warranty()
     {
         return $this->belongsTo(Warranty::class);
-    }
-    public function productSeries()
-    {
-        return $this->belongsTo(ProductSeries::class);
     }
     public function images()
     {

@@ -13,7 +13,13 @@ class Slideshow extends Model
     public $incrementing = false;
     protected $keyType = 'string';
 
-    protected $fillable = ['product_series_id', 'image_path', 'position', 'is_active'];
+    // 🌟 បន្ថែម 'link_url' ចូល និងលុប 'product_series_id' ចេញ
+    protected $fillable = [
+        'link_url',
+        'image_path',
+        'position',
+        'is_active'
+    ];
 
     protected function casts(): array
     {
@@ -21,10 +27,5 @@ class Slideshow extends Model
             'is_active' => 'boolean',
             'position' => 'integer',
         ];
-    }
-
-    public function series()
-    {
-        return $this->belongsTo(ProductSeries::class, 'product_series_id');
     }
 }

@@ -56,7 +56,7 @@ class ProductController extends Controller
     public function showBySlug(string $slug)
     {
         $product = Product::where('slug', $slug)
-            ->with(['categories', 'brand', 'images', 'specs', 'warranty', 'productSeries'])
+            ->with(['categories', 'brand', 'images', 'specs', 'warranty'])
             ->firstOrFail();
 
         return $this->sendResponse(new ProductResource($product), 'Product detail fetched.');
@@ -74,7 +74,6 @@ class ProductController extends Controller
             'brand_id'          => 'required|exists:brands,id',
             'price'             => 'required|numeric|min:0',
             'discount_percent'  => 'nullable|numeric|min:0|max:100',
-            'product_series_id' => 'nullable|exists:product_series,id',
             'warranty_id'       => 'nullable|exists:warranties,id',
             'is_active'         => 'boolean',
             'is_serialized'     => 'boolean',
@@ -131,7 +130,6 @@ class ProductController extends Controller
             'brand_id'          => 'sometimes|required|exists:brands,id',
             'price'             => 'sometimes|required|numeric|min:0',
             'discount_percent'  => 'nullable|numeric|min:0|max:100',
-            'product_series_id' => 'nullable|exists:product_series,id',
             'warranty_id'       => 'nullable|exists:warranties,id',
             'is_active'         => 'boolean',
             'is_serialized'     => 'boolean',

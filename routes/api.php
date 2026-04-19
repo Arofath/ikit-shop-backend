@@ -12,7 +12,6 @@ use App\Http\Controllers\Api\Admin\{
     ProductImageController,
     ProductSpecController,
     ProductStockMovementController,
-    ProductSeriesController,
     SlideshowController,
     SupplierController,
     WarrantyController,
@@ -40,7 +39,6 @@ Route::prefix('products')->group(function () {
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/brands', [BrandController::class, 'index']);
 Route::get('/slideshows', [SlideshowController::class, 'index']);
-Route::get('/product-series', [ProductSeriesController::class, 'index']);
 // Public Route (អតិថិជនប្រើ)
 Route::get('check-warranty', [PublicWarrantyController::class, 'check']);
 // =============================================================
@@ -118,9 +116,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::delete('product-images/{id}', [ProductImageController::class, 'destroy']);
         Route::patch('product-specs/{spec}', [ProductSpecController::class, 'update']);
         Route::delete('product-specs/{spec}', [ProductSpecController::class, 'destroy']);
-        
-        // ​​Product Series
-        Route::apiResource('product-series', ProductSeriesController::class);
+    
 
         // Stock Movement Routes
         // Stock Movement Routes
