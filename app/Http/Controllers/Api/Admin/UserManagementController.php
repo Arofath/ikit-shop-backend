@@ -68,7 +68,7 @@ class UserManagementController extends Controller
         $user = clone User::create($validated);
 
         // បង្កើត Profile ទទេមួយភ្ជាប់ទៅជាមួយ
-        $user->profile()->create([]);
+        $user->profile()->firstOrCreate([]);
 
         return response()->json([
             'success' => true,
