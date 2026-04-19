@@ -132,6 +132,15 @@ class ProductStockMovementController extends Controller
 
             $movement = ProductStockMovement::create($data);
 
+            if ($request->type === 'IN' && $request->filled('cost_price')) {
+                $product = Product::find($request->product_id);
+                if ($product) {
+                    $product->update([
+                        'cost_price' => $request->cost_price // Update តម្លៃដើមចុងក្រោយ
+                    ]);
+                }
+            }
+
             if ($product->is_serialized && !empty($data['serials'])) {
                 if ($data['type'] === 'IN') {
                     $serialData = [];
