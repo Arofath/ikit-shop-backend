@@ -55,7 +55,7 @@ class ProductStockMovementController extends Controller
     // ២. ការបញ្ចូលស្តុកថ្មី
     public function store(Request $request)
     {
-        $data = $request->validate([
+        $rules = [
             'product_id'       => 'required|exists:products,id',
             'supplier_id'      => 'required_if:type,IN|nullable|exists:suppliers,id',
             'reference_number' => 'nullable|string|max:50',
@@ -71,12 +71,20 @@ class ProductStockMovementController extends Controller
                     }
                 },
             ],
-
             'cost_price'       => 'required_if:type,IN|nullable|numeric|min:0',
             'note'             => 'nullable|string',
             'serials'          => 'nullable|array',
             'serials.*'        => 'string|distinct',
-        ]);
+        ];
+
+        // 🌟 ២. បន្ថែម Custom Messages សម្រាប់ប្តូរសារ Error ឱ្យងាយយល់
+        $messages = [
+            'supplier_id.required_if' => 'Please select a supplier when adding stock.',
+            'cost_price.required_if'  => 'Please enter the cost price when adding stock.',
+        ];
+
+        // ៣. ដាក់បញ្ជូលវាទាំង២ ទៅក្នុង validate()
+        $data = $request->validate($rules, $messages);
 
         $product = Product::findOrFail($data['product_id']);
 
