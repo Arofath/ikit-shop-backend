@@ -20,6 +20,7 @@ class SlideshowResource extends JsonResource
             'image_url' => $this->image_path,
             'position'  => $this->position,
             'is_active' => $this->is_active,
+            'created_at' => $this->created_at,
         ];
     }
 }
