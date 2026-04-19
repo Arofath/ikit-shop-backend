@@ -10,7 +10,6 @@ use App\Http\Resources\ProductStockMovementResource;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class ProductStockMovementController extends Controller
 {
@@ -72,7 +71,7 @@ class ProductStockMovementController extends Controller
                     }
                 },
             ],
-            
+
             'cost_price'       => 'required_if:type,IN|nullable|numeric|min:0',
             'note'             => 'nullable|string',
             'serials'          => 'nullable|array',
@@ -81,10 +80,20 @@ class ProductStockMovementController extends Controller
 
         $product = Product::findOrFail($data['product_id']);
 
+        // 🌟 កន្លែងដែលបានកែប្រែ៖ បំបែកលក្ខខណ្ឌ IN និង OUT ឱ្យដាច់ពីគ្នា
         if ($product->is_serialized) {
-            if (in_array($data['type'], ['IN', 'OUT'])) {
-                if (empty($data['serials']) || count($data['serials']) !== (int) abs($data['quantity'])) {
-                    return $this->sendError('Validation Error.', ['The number of serials must exactly match the quantity for serialized products.'], 422);
+            $inputQuantity = (int) abs($data['quantity']);
+            $serialCount = empty($data['serials']) ? 0 : count($data['serials']);
+
+            if ($data['type'] === 'IN') {
+                // សម្រាប់ IN៖ មិនស្កេនក៏បាន (Pending) តែបើស្កេនគឺមិនឱ្យលើស Quantity
+                if ($serialCount > $inputQuantity) {
+                    return $this->sendError('Validation Error.', ['You scanned more serial numbers than the received quantity.'], 422);
+                }
+            } elseif ($data['type'] === 'OUT') {
+                // សម្រាប់ OUT៖ ត្រូវតែស្កេនឱ្យគ្រប់ចំនួន Quantity ដាច់ខាត
+                if ($serialCount !== $inputQuantity) {
+                    return $this->sendError('Validation Error.', ['The number of serials must exactly match the quantity for OUT movements.'], 422);
                 }
             }
         } else {
@@ -96,10 +105,10 @@ class ProductStockMovementController extends Controller
         try {
             $currentStock = $this->calculateStock($product->id);
 
-            // 🌟 Fixed Logic: No more 'clone'. Simple math.
+            // Fixed Logic: No more 'clone'. Simple math.
             $inputQuantity = (int) $data['quantity'];
             $change = 0;
-            
+
             if ($data['type'] === 'IN') {
                 $change = abs($inputQuantity); // Force positive
             } elseif ($data['type'] === 'OUT') {
@@ -109,8 +118,8 @@ class ProductStockMovementController extends Controller
             }
 
             // Ensure the saved quantity reflects the true movement direction
-            $data['quantity'] = $change; 
-            
+            $data['quantity'] = $change;
+
             $data['balance_after'] = $currentStock + $change;
 
             if ($data['balance_after'] < 0) {
@@ -133,12 +142,10 @@ class ProductStockMovementController extends Controller
             $movement = ProductStockMovement::create($data);
 
             if ($request->type === 'IN' && $request->filled('cost_price')) {
-                $product = Product::find($request->product_id);
-                if ($product) {
-                    $product->update([
-                        'cost_price' => $request->cost_price // Update តម្លៃដើមចុងក្រោយ
-                    ]);
-                }
+                // 🌟 កន្លែងនេះមិនបាច់ Query $product ថ្មីទេ ព្រោះយើងមានពីខាងលើស្រាប់
+                $product->update([
+                    'cost_price' => $request->cost_price // Update តម្លៃដើមចុងក្រោយ
+                ]);
             }
 
             if ($product->is_serialized && !empty($data['serials'])) {
@@ -146,7 +153,7 @@ class ProductStockMovementController extends Controller
                     $serialData = [];
                     foreach ($data['serials'] as $sn) {
                         $serialData[] = [
-                            'id'                  => (string) Str::uuid(),
+                            'id'                  => (string) \Illuminate\Support\Str::uuid(), // 🌟 ប្រើ Full Path ដើម្បីកុំឱ្យ Error ពេលភ្លេច Import
                             'product_id'          => $product->id,
                             'initial_movement_id' => $movement->id,
                             'serial_number'       => $sn,
@@ -169,7 +176,7 @@ class ProductStockMovementController extends Controller
             DB::commit();
 
             return $this->sendResponse(
-                new ProductStockMovementResource($movement),
+                $movement, // បើអ្នកមាន Resource អាចដាក់ new ProductStockMovementResource($movement) ដូចដើម
                 'Stock movement recorded successfully.',
                 201
             );
