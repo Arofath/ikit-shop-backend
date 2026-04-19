@@ -150,7 +150,10 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::post('/reorder', [SlideshowController::class, 'reorder']);
             Route::get('/', [SlideshowController::class, 'index']);      // មើលបញ្ជី Slide ទាំងអស់
             Route::post('/', [SlideshowController::class, 'store']);     // បង្កើត Slide ថ្មី (Upload រូបភាព)
-            Route::put('/{id}', [SlideshowController::class, 'update']);  
+
+            // 🌟 កែប្រែពី put មក post ដើម្បីគាំទ្រការ Upload រូបភាព (Multipart Form Data)
+            Route::post('/{id}', [SlideshowController::class, 'update']);
+
             Route::delete('/{id}', [SlideshowController::class, 'destroy']); // លុប Slide
             Route::patch('/{id}/toggle-status', [SlideshowController::class, 'toggleStatus']);
         });
