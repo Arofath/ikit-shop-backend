@@ -146,6 +146,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::get('/', [ProductSerialController::class, 'index']);
             Route::get('/check-warranty/{serial_number}', [ProductSerialController::class, 'checkWarranty']);
             Route::patch('/{id}/status', [ProductSerialController::class, 'updateStatus']);
+            Route::put('/{id}/serial-number', [ProductSerialController::class, 'updateSerialNumber']);
         });
 
         // Slideshows

@@ -85,4 +85,26 @@ class ProductSerialController extends Controller
             "Serial status updated to {$request->status} successfully."
         );
     }
+
+    public function updateSerialNumber(Request $request, string $id)
+    {
+        $serial = ProductSerial::findOrFail($id);
+
+        // ការពារការកែប្រែប្រសិនបើវាមិនមែនជា AVAILABLE
+        if ($serial->status !== 'AVAILABLE') {
+            return $this->sendError('Action Denied.', ['Only AVAILABLE serials can be modified.'], 403);
+        }
+
+        $request->validate([
+            // ត្រូវប្រាកដថាលេខថ្មី មិនជាន់នឹងលេខដែលមានស្រាប់ក្នុងប្រព័ន្ធ
+            'serial_number' => ['required', 'string', Rule::unique('product_serials')->ignore($serial->id)],
+        ]);
+
+        $serial->update(['serial_number' => $request->serial_number]);
+
+        return $this->sendResponse(
+            new ProductSerialResource($serial),
+            "Serial number updated successfully."
+        );
+    }
 }
