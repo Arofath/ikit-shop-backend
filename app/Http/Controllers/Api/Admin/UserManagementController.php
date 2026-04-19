@@ -45,6 +45,38 @@ class UserManagementController extends Controller
         ], 200);
     }
 
+    // បង្កើត User / Admin ថ្មី
+    public function store(Request $request)
+    {
+        $currentUser = $request->user();
+
+        // 🌟 ការពារមានតែ Super Admin ទេទើបអាចបង្កើត Admin ថ្មីបាន
+        if ($request->role === 'admin' && !$currentUser->isSuperAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized: Only Super Admin can create admin accounts.'], 403);
+        }
+
+        $validated = $request->validate([
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8',
+            'role'     => 'required|in:admin,customer',
+        ]);
+
+        $validated['password'] = bcrypt($validated['password']);
+        $validated['is_active'] = true;
+
+        $user = clone User::create($validated);
+
+        // បង្កើត Profile ទទេមួយភ្ជាប់ទៅជាមួយ
+        $user->profile()->create([]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Account created successfully.',
+            'data' => new UserResource($user->load('profile'))
+        ], 201);
+    }
+
     // view user details
     public function show(string $id)
     {
