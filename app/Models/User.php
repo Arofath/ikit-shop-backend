@@ -56,7 +56,10 @@ class User extends Authenticatable
 
     public function isSuperAdmin(): bool
     {
-        return $this->email === config('app.super_admin_email');
+        // វាផ្តល់សិទ្ធិជា Super Admin ប្រសិនបើ៖
+        // ១. ជា Email ដែលកំណត់ក្នុង .env (Admin គោលមិនអាចលុបបាន)
+        // ២. ឬមាន Role ស្មើនឹង 'super_admin' នៅក្នុង Database
+        return $this->email === config('app.super_admin_email') || $this->role === 'super_admin';
     }
 
     public function profile()

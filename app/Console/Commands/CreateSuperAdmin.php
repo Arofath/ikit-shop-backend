@@ -34,9 +34,9 @@ class CreateSuperAdmin extends Command
             return;
         }
 
-        $user->update(['role' => 'admin']); // ឬ 'super_admin' តាមការរៀបចំរបស់អ្នក
+        $user->update(['role' => 'super_admin']); // ឬ 'super_admin' តាមការរៀបចំរបស់អ្នក
 
-        $this->info("User {$email} has been promoted to Admin successfully!");
+        $this->info("User {$email} has been promoted to Super Admin successfully!");
     }
 }
 

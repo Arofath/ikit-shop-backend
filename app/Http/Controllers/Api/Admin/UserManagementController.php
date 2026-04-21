@@ -14,17 +14,15 @@ class UserManagementController extends Controller
     {
         $currentUser = $request->user();
 
-        // ដោះស្រាយ Bug កន្លែង Chain Query និង Return
         $users = User::with('profile')
             ->when(!$currentUser->isSuperAdmin(), function ($query) {
-                // កុំប្រើ return ក្នុងនេះ! ប្រើ $query ផ្ទាល់
+                // Admin ធម្មតាមើលឃើញត្រឹម Customer ទេ
                 $query->where('role', 'customer');
             })
             ->when($request->filled('role'), function ($query) use ($request) {
                 $query->where('role', $request->role);
             })
             ->when($request->filled('is_active'), function ($query) use ($request) {
-                // ត្រូវប្រាកដថាប្រៀបធៀបជា boolean ឬ string '1'/'0'
                 $query->where('is_active', $request->boolean('is_active'));
             })
             ->when($request->filled('search'), function ($query) use ($request) {
@@ -38,29 +36,29 @@ class UserManagementController extends Controller
             ->latest()
             ->paginate($request->get('per_page', 10));
 
-        return response()->json([
-            'success' => true,
-            'message' => 'List of users fetched successfully.',
-            'data' => UserResource::collection($users)->response()->getData(true),
-        ], 200);
+        // ទាញយកទិន្នន័យ Pagination ឱ្យត្រូវទម្រង់
+        $paginatedData = UserResource::collection($users)->response()->getData(true);
+
+        return $this->sendResponse($paginatedData, 'List of users fetched successfully.');
     }
 
-    // បង្កើត User / Admin ថ្មី
+    // បង្កើត User / Admin / Super Admin ថ្មី
     public function store(Request $request)
     {
         $currentUser = $request->user();
 
-        // 🌟 ការពារមានតែ Super Admin ទេទើបអាចបង្កើត Admin ថ្មីបាន
-        if ($request->role === 'admin' && !$currentUser->isSuperAdmin()) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized: Only Super Admin can create admin accounts.'], 403);
-        }
-
+        // 🌟 កែប្រែ៖ ត្រូវបន្ថែម 'super_admin' ចូលក្នុង Validation
         $validated = $request->validate([
             'name'     => 'required|string|max:255',
             'email'    => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
-            'role'     => 'required|in:admin,customer',
+            'role'     => 'required|in:customer,admin,super_admin',
         ]);
+
+        // 🌟 ការពារមានតែ Super Admin ទេទើបអាចបង្កើត Admin ឬ Super Admin ថ្មីបាន
+        if (in_array($request->role, ['admin', 'super_admin']) && !$currentUser->isSuperAdmin()) {
+            return $this->sendError('Unauthorized: Only Super Admin can create admin accounts.', [], 403);
+        }
 
         $validated['password'] = bcrypt($validated['password']);
         $validated['is_active'] = true;
@@ -70,23 +68,14 @@ class UserManagementController extends Controller
         // បង្កើត Profile ទទេមួយភ្ជាប់ទៅជាមួយ
         $user->profile()->firstOrCreate([]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Account created successfully.',
-            'data' => new UserResource($user->load('profile'))
-        ], 201);
+        return $this->sendResponse(new UserResource($user->load('profile')), 'Account created successfully.', 201);
     }
 
     // view user details
     public function show(string $id)
     {
         $user = User::with('profile')->findOrFail($id);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'User details fetched successfully.',
-            'data' => new UserResource($user)
-        ], 200);
+        return $this->sendResponse(new UserResource($user), 'User details fetched successfully.');
     }
 
     // Enable / Disable user
@@ -99,28 +88,25 @@ class UserManagementController extends Controller
 
         // ១. ការពារខ្លួនឯង
         if ($currentUser->id === $user->id && !$request->is_active) {
-            return response()->json(['success' => false, 'message' => 'You cannot disable your own account.'], 403);
+            return $this->sendError('You cannot disable your own account.', [], 403);
         }
 
-        // 🌟 ២. ការពារ Super Admin ពី Admin ធម្មតា
+        // ២. ការពារ Super Admin ពី Admin ធម្មតា (អត់មានការផ្លាស់ប្តូរទេ ព្រោះ Function isSuperAdmin ល្អស្រាប់)
         if ($user->isSuperAdmin() && !$currentUser->isSuperAdmin()) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized: Cannot modify Super Admin status.'], 403);
+            return $this->sendError('Unauthorized: Cannot modify Super Admin status.', [], 403);
         }
 
         $user->update(['is_active' => $request->is_active]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User status updated successfully.',
-            'data' => new UserResource($user)
-        ], 200);
+        return $this->sendResponse(new UserResource($user), 'User status updated successfully.');
     }
 
     // Change role
     public function updateRole(Request $request, string $id)
     {
+        // 🌟 កែប្រែ៖ ត្រូវបន្ថែម 'super_admin' ចូលក្នុង Validation
         $request->validate([
-            'role' => 'required|in:admin,customer',
+            'role' => 'required|in:customer,admin,super_admin',
         ]);
 
         $user = User::findOrFail($id);
@@ -128,21 +114,17 @@ class UserManagementController extends Controller
 
         // ១. ការពារខ្លួនឯង
         if ($currentUser->id === $user->id) {
-            return response()->json(['success' => false, 'message' => 'You cannot change your own role.'], 403);
+            return $this->sendError('You cannot change your own role.', [], 403);
         }
 
-        // 🌟 ២. ការពារ Super Admin ពី Admin ធម្មតា និង ការពារមិនឱ្យ Admin ធម្មតាបង្កើត Admin ថ្មីផ្តេសផ្តាស
+        // ២. ការពារមិនឱ្យ Admin ធម្មតាធ្វើការផ្លាស់ប្តូរ Role
         if (!$currentUser->isSuperAdmin()) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized: Only Super Admin can change user roles.'], 403);
+            return $this->sendError('Unauthorized: Only Super Admin can change user roles.', [], 403);
         }
 
         $user->update(['role' => $request->role]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User role updated successfully.',
-            'data' => new UserResource($user->load('profile'))
-        ], 200);
+        return $this->sendResponse(new UserResource($user->load('profile')), 'User role updated successfully.');
     }
 
     // Delete user
@@ -151,21 +133,23 @@ class UserManagementController extends Controller
         $userToDelete = User::findOrFail($id);
         $currentUser = $request->user();
 
-        // ១. ការពារ Super Admin និង Admin (កម្រិតសិទ្ធិដែលអ្នកបានធ្វើគឺត្រូវហើយ ខ្ញុំគ្រាន់តែពង្រឹងវា)
-        if ($userToDelete->role === 'admin' && !$currentUser->isSuperAdmin()) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized: Only Super Admin can delete admins.'], 403);
+        // 🌟 ថ្មី៖ ការពារគណនី Founder មិនឱ្យត្រូវគេលុបបានទាល់តែសោះ (ទោះជា Super Admin ផ្សេងទៀតចង់លុបក៏ដោយ)
+        if ($userToDelete->email === config('app.super_admin_email')) {
+            return $this->sendError('Unauthorized: The primary system owner account cannot be deleted.', [], 403);
         }
 
-        // ២. ការពារការលុបខ្លួនឯង
+        // 🌟 កែប្រែ៖ ការពារការលុប Admin ឬ Super Admin ពីសំណាក់ Admin ធម្មតា
+        if (($userToDelete->role === 'admin' || $userToDelete->isSuperAdmin()) && !$currentUser->isSuperAdmin()) {
+            return $this->sendError('Unauthorized: Only Super Admin can delete other admins.', [], 403);
+        }
+
+        // ការពារការលុបខ្លួនឯង
         if ($currentUser->id === $userToDelete->id) {
-            return response()->json(['success' => false, 'message' => 'You cannot delete your own account.'], 403); // ប្តូរទៅ 403 ឱ្យត្រូវស្តង់ដារ
+            return $this->sendError('You cannot delete your own account.', [], 403);
         }
 
         $userToDelete->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User deleted successfully.'
-        ], 200);
+        return $this->sendResponse([], 'User deleted successfully.');
     }
 }
