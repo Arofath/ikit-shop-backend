@@ -29,9 +29,11 @@ class AIGeneratorController extends Controller
         }
 
         // ២. រៀបចំ Prompt បញ្ជាទៅកាន់ AI ឱ្យសរសេរជាទម្រង់ Markdown ងាយស្រួលអាន
-        $prompt = "Act as an expert E-commerce copywriter. Write a compelling, SEO-friendly product description for a technical hardware product named: '{$productName}'. 
-        The description should be around 2-3 short paragraphs. Highlight potential technical features and benefits. 
-        Write in pure plain text ONLY. Do not use any markdown formatting, asterisks, bold text, or HTML tags.";
+        $prompt = "Act as an expert E-commerce copywriter. Write a short, punchy, and SEO-friendly product description for a technical hardware product named: '{$productName}'. 
+        Strict rules:
+        - Keep the description strictly between 2 to 3 short sentences (maximum 50 words).
+        - Focus only on the main selling point and key benefit.
+        - Write in pure plain text ONLY. Do not use any markdown formatting, asterisks, bold text, or HTML tags.";
 
         try {
             // ៣. បាញ់ Request ទៅកាន់ Gemini 1.5 Flash (ម៉ូដែលលឿន និងសន្សំសំចៃ)
