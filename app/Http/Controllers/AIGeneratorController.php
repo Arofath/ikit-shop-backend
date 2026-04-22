@@ -31,13 +31,13 @@ class AIGeneratorController extends Controller
         // ២. រៀបចំ Prompt បញ្ជាទៅកាន់ AI ឱ្យសរសេរជាទម្រង់ Markdown ងាយស្រួលអាន
         $prompt = "Act as an expert E-commerce copywriter. Write a compelling, SEO-friendly product description for a technical hardware product named: '{$productName}'. 
         The description should be around 2-3 short paragraphs. Highlight potential technical features and benefits. 
-        Format the response using simple markdown like **bold** for key specs and bullet points (-) for features. Do not include any HTML tags.";
+        Write in pure plain text ONLY. Do not use any markdown formatting, asterisks, bold text, or HTML tags.";
 
         try {
             // ៣. បាញ់ Request ទៅកាន់ Gemini 1.5 Flash (ម៉ូដែលលឿន និងសន្សំសំចៃ)
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
-            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", [
+            ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={$apiKey}", [
                 'contents' => [
                     [
                         'parts' => [
