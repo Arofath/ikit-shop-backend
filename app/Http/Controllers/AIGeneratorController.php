@@ -64,7 +64,8 @@ class AIGeneratorController extends Controller
             Log::error('Gemini API Error: ' . $response->body());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to generate description from AI service.'
+                // 🌟 បង្ហាញសារ Error ពិតប្រាកដពី Google
+                'message' => 'Gemini Error: ' . $response->body()
             ], 502);
         } catch (\Exception $e) {
             // ចាប់ Error ទូទៅ (ដូចជាដាច់អ៊ីនធឺណិតពី Server)

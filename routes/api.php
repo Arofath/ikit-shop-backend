@@ -107,8 +107,6 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::patch('product-specs/{spec}', [ProductSpecController::class, 'update']);
         Route::delete('product-specs/{spec}', [ProductSpecController::class, 'destroy']);
 
-
-        // Stock Movement Routes
         // Stock Movement Routes
         Route::prefix('stock-movements')->group(function () {
             Route::get('/', [ProductStockMovementController::class, 'index']);      // មើលប្រវត្តិស្តុកទាំងអស់
