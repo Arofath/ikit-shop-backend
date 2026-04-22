@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AIGeneratorController;
 use App\Http\Controllers\Api\Admin\{UserManagementController, CategoryController, BrandController, ProductController, ProductImageController, ProductSpecController, ProductStockMovementController, SlideshowController, SupplierController, WarrantyController, ProductSerialController, SettingController};
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PublicWarrantyController;
@@ -153,12 +154,10 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             // ប្រើ POST ព្រោះយើងមាន Upload រូបភាព (Logo)
             Route::post('/', [SettingController::class, 'update']);
         });
+
+        Route::post('/ai/generate-description', [AIGeneratorController::class, 'generateDescription']);
     });
 });
-
-
-
-
 
 // Route::prefix('otp')->group(function () {
 //     Route::post('/send', [OtpController::class, 'send']);
