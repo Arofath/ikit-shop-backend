@@ -17,9 +17,11 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password')->nullable();
-            $table->string('phone_number')->unique();
+            $table->string('phone_number')->nullable()->unique();
             $table->timestamp('phone_verified_at')->nullable();
-            $table->enum('role', ['admin', 'customer'])->default('customer');
+
+            $table->enum('role', ['admin', 'customer', 'super_admin'])->default('customer');
+
             $table->enum('provider', ['local', 'google'])->default('local');
             $table->string('provider_id')->nullable()->unique();
             $table->softDeletes();

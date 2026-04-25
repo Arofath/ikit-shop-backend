@@ -14,12 +14,18 @@ return new class extends Migration
         Schema::create('orders', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('order_number')->unique(); // ឧទាហរណ៍៖ ORD-20260204-0001
-            $table->uuid('user_id'); // អ្នកទិញ
+
+            $table->foreignUuid('user_id')->constrained('users'); // អ្នកទិញ
             $table->uuid('address_id')->nullable(); // អាសយដ្ឋានដឹកជញ្ជូន
 
             // ផ្នែកហិរញ្ញវត្ថុ
             $table->decimal('subtotal', 12, 2); // តម្លៃសរុបមុនបញ្ចុះតម្លៃ
             $table->decimal('discount_total', 12, 2)->default(0); // ចំនួនទឹកប្រាក់ដែលបានបញ្ចុះ
+
+            // បញ្ចូល Field ថ្មីមកទីនេះដោយផ្ទាល់
+            $table->decimal('shipping_fee', 12, 2)->default(0);
+            $table->decimal('tax_amount', 12, 2)->default(0);
+
             $table->decimal('grand_total', 12, 2); // តម្លៃដែលត្រូវបង់ពិតប្រាកដ
 
             // ស្ថានភាព
@@ -30,8 +36,6 @@ return new class extends Migration
             $table->text('note')->nullable();
             $table->timestamps();
             $table->softDeletes();
-
-            $table->foreign('user_id')->references('id')->on('users');
         });
     }
 

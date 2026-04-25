@@ -13,13 +13,19 @@ return new class extends Migration
     {
         Schema::create('user_profiles', function (Blueprint $table) {
             $table->id();
-            $table->uuid('user_id')->unique(); // Foreign key to users table
+
+            // ប្រើ syntax ថ្មីរបស់ Laravel សម្រាប់ Foreign Key (UUID)
+            $table->foreignUuid('user_id')->unique()->constrained('users')->cascadeOnDelete();
+
             $table->string('profile_image')->nullable();
             $table->enum('gender', ['male', 'female', 'other'])->nullable();
-            $table->timestamps();
 
-            // Foreign key constraint
-            $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete(); // delete profile if user deleted
+            $table->date('date_of_birth')->nullable();
+            $table->string('address')->nullable(); // អាសយដ្ឋានបច្ចុប្បន្ន
+            $table->string('position')->nullable(); // មុខតំណែង (ឧ. 'Sales Manager', 'IT Support')
+            $table->text('bio')->nullable(); // ការពិពណ៌នាខ្លីៗ ឬជំនាញ
+
+            $table->timestamps();
         });
     }
 

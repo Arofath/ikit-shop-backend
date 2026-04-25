@@ -13,17 +13,20 @@ return new class extends Migration
     {
         Schema::create('order_items', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->uuid('order_id');
-            $table->uuid('product_id');
+
+            // កែប្រែមកប្រើ Syntax ថ្មី
+            $table->foreignUuid('order_id')->constrained('orders')->cascadeOnDelete();
+            $table->foreignUuid('product_id')->constrained('products');
+
+            // បញ្ចូល Field ថ្មី (Snapshot ទិន្នន័យផលិតផល)
+            $table->string('product_name')->nullable();
+            $table->string('product_sku')->nullable();
 
             $table->integer('quantity');
-            $table->decimal('unit_price', 12, 2); // រក្សាតម្លៃលក់នៅពេលបញ្ជាទិញ (ការពារតម្លៃឡើងចុះថ្ងៃក្រោយ)
+            $table->decimal('unit_price', 12, 2); // រក្សាតម្លៃលក់នៅពេលបញ្ជាទិញ
             $table->decimal('subtotal', 12, 2); // quantity * unit_price
 
             $table->timestamps();
-
-            $table->foreign('order_id')->references('id')->on('orders')->cascadeOnDelete();
-            $table->foreign('product_id')->references('id')->on('products');
         });
     }
 

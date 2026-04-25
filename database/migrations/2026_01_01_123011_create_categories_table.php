@@ -13,20 +13,18 @@ return new class extends Migration
     {
         Schema::create('categories', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('name'); // Category name
-            $table->string('slug')->unique(); // URL-friendly identifier
-            $table->string('image')->nullable(); // Path to category image
-            $table->uuid('parent_id')->nullable(); // Parent category reference
-            $table->boolean('is_active')->default(true); // Active status 
+            $table->string('name');
+            $table->string('slug')->unique();
+            $table->string('image')->nullable();
+
+            // ប្រើ Syntax ថ្មីសម្រាប់ភ្ជាប់មកកាន់ Table ខ្លួនឯង (Self-referencing)
+            $table->foreignUuid('parent_id')->nullable()->constrained('categories')->nullOnDelete();
+
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
 
-            $table->index('parent_id');
+            // មិនបាច់ដាក់ Index លើ parent_id ទៀតទេ ព្រោះ Foreign Key បានបង្កើត Index ឱ្យរួចហើយ
             $table->index('is_active');
-
-            $table->foreign('parent_id')
-                ->references('id')
-                ->on('categories')
-                ->nullOnDelete();
         });
     }
 

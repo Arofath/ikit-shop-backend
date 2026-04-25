@@ -19,7 +19,12 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        'https://ikit-shop-admin.vercel.app',  // Admin
+        // 'https://ikit-shop.vercel.app',        // E-commerce ថ្ងៃក្រោយ
+        'http://localhost:5173',               // ទុកសម្រាប់ Run ក្នុងកុំព្យូទ័រ
+        'http://localhost:5174',
+    ],
 
     'allowed_origins_patterns' => [],
 
@@ -29,6 +34,6 @@ return [
 
     'max_age' => 0,
 
-    'supports_credentials' => true,
+    'supports_credentials' => false,
 
 ];

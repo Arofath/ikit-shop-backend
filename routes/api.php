@@ -6,6 +6,8 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PublicWarrantyController;
 use App\Http\Controllers\Api\UserProfileController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\OrderController as ShopOrderController;
+use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 
 // =============================================================
 // 1. PUBLIC ROUTES (Guests & Customers)
@@ -100,6 +102,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::post('/{product}/specs/sync', [ProductSpecController::class, 'sync']);
             // Route::get('/{product}/specs', [ProductSpecController::class, 'index']);
         });
+        Route::post('/ai/generate-description', [AIGeneratorController::class, 'generateDescription']);
 
         // Standalone Image/Spec Actions
         Route::patch('product-images/{id}/thumbnail', [ProductImageController::class, 'setThumbnail']);
@@ -153,11 +156,29 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::post('/', [SettingController::class, 'update']);
         });
 
-        Route::post('/ai/generate-description', [AIGeneratorController::class, 'generateDescription']);
+        Route::prefix('orders')->group(function () {
+            // មើលបញ្ជី Order
+            Route::get('/', [AdminOrderController::class, 'index']);
+
+            // មើល Order លម្អិត
+            Route::get('/orders/{id}', [AdminOrderController::class, 'show']);
+
+            // កែប្រែស្ថានភាព (ប៊ូតុង Mark as Shipped)
+            Route::patch('/orders/{id}/status', [AdminOrderController::class, 'updateStatus']);
+        });
+
+
+    });
+
+    Route::prefix('shop')->group(function () {
+        // ១. ភ្ញៀវបញ្ជាទិញ (Checkout)
+        // Endpoint: POST /api/shop/orders
+        Route::post('/orders', [ShopOrderController::class, 'store']);
+        // ២. ភ្ញៀវមើលប្រវត្តិទិញរបស់ខ្លួនឯង (My Orders)
+        // Endpoint: GET /api/shop/orders
+        Route::get('/orders', [ShopOrderController::class, 'index']);
+        // ៣. ភ្ញៀវមើលវិក្កយបត្រលម្អិតរបស់ខ្លួនឯង
+        // Endpoint: GET /api/shop/orders/{id}
+        Route::get('/orders/{id}', [ShopOrderController::class, 'show']);
     });
 });
-
-// Route::prefix('otp')->group(function () {
-//     Route::post('/send', [OtpController::class, 'send']);
-//     Route::post('/verify', [OtpController::class, 'verify']);
-// });

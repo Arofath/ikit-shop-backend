@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignUuid('category_id')->constrained()->cascadeOnDelete();
             $table->foreignUuid('product_id')->constrained()->cascadeOnDelete(); // ដូរទៅ foreignId បើមិនប្រើ UUID
+            $table->unique(['category_id', 'product_id']);
             $table->timestamps();
         });
     }

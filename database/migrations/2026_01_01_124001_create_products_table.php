@@ -13,29 +13,31 @@ return new class extends Migration
     {
         Schema::create('products', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('name'); // Product name
-            $table->string('slug')->unique(); // URL-friendly identifier
-            $table->string('sku')->unique(); // Stock Keeping Unit. e.g., SKU-123
+            $table->string('name');
+            $table->string('slug')->unique();
+            $table->string('sku')->unique();
 
-            $table->uuid('category_id'); // Foreign key to categories table
-            $table->uuid('brand_id'); // Foreign key to brands table
-            $table->uuid('warranty_id')->nullable(); // បន្ថែមចំណុចនេះ
-            $table->uuid('product_series_id')->nullable(); // បន្ថែមចំណុចនេះ
+            // ដក category_id ចេញ តាមបំណងរបស់អ្នក!
+            $table->foreignUuid('brand_id')->constrained('brands')->cascadeOnDelete();
+            $table->foreignUuid('warranty_id')->nullable()->constrained('warranties')->nullOnDelete();
+            $table->foreignUuid('product_series_id')->nullable()->constrained('product_series')->nullOnDelete();
 
-            $table->text('description')->nullable(); // Product description
-            $table->decimal('price', 12, 2); // Price (12 digits, 2 decimals)
-            $table->decimal('discount_percent', 5, 2)->nullable(); // Optional discount percentage
-            $table->boolean('is_active')->default(true); // Active status
+            $table->text('description')->nullable();
+
+            // ផ្នែកហិរញ្ញវត្ថុ
+            $table->decimal('price', 12, 2);
+            $table->decimal('cost_price', 12, 2)->nullable();
+            $table->decimal('discount_percent', 5, 2)->nullable();
+
+            // ផ្នែកស្ថានភាពទំនិញ
+            $table->boolean('is_active')->default(true);
+            $table->boolean('is_serialized')->default(false);
+
+            // Timestamp និង Soft Deletes
             $table->timestamps();
+            $table->softDeletes();
 
-            // Foreign key constraints
-            $table->foreign('category_id')->references('id')->on('categories')->cascadeOnDelete();
-            $table->foreign('brand_id')->references('id')->on('brands')->cascadeOnDelete();
-            $table->foreign('warranty_id')->references('id')->on('warranties')->nullOnDelete();
-            $table->foreign('product_series_id')->references('id')->on('product_series')->nullOnDelete();
-
-            // Indexes
-            $table->index(['category_id', 'is_active']);
+            // Indexes (ដក index របស់ category_id ចេញ)
             $table->index(['brand_id', 'is_active']);
             $table->index('product_series_id');
         });
