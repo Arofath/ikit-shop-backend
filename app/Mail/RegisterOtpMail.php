@@ -14,9 +14,6 @@ class RegisterOtpMail extends Mailable
 
     public $otpCode; // បង្កើត Variable សម្រាប់ស្តុកទុក OTP Code
 
-    /**
-     * Create a new message instance.
-     */
     public function __construct($otpCode)
     {
         $this->otpCode = $otpCode; // ទទួលយកទិន្នន័យពី Controller

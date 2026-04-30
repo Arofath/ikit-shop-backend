@@ -139,8 +139,8 @@ class AuthController extends Controller
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $minutes = ceil(RateLimiter::availableIn($throttleKey) / 60);
             return $this->sendError(
-                "Too many login attempts. Please try again after {$minutes} minutes.", 
-                ['retry_after_minutes' => $minutes], 
+                "Too many login attempts. Please try again after {$minutes} minutes.",
+                ['retry_after_minutes' => $minutes],
                 429
             );
         }
@@ -159,17 +159,24 @@ class AuthController extends Controller
             return $this->sendError('Your account is disabled.', [], 403);
         }
 
-        if ($user->email_verified_at === null && $user->role !== 'admin') {
+        // 🌟 កែប្រែទី១៖ អនុញ្ញាតឱ្យទាំង admin និង super_admin អាចរំលងការ Verify Email ទីនេះបាន
+        if ($user->email_verified_at === null && !in_array($user->role, ['admin', 'super_admin'])) {
             return $this->sendError('Your email address is not verified. Please verify your email before logging in.', ['needs_verification' => true, 'email' => $user->email], 403);
         }
 
         RateLimiter::clear($throttleKey);
         $user->update(['last_login_at' => now()]);
 
-        if ($user->role === 'admin') {
+        // 🌟 កែប្រែទី២៖ អនុញ្ញាតឱ្យទាំង admin និង super_admin ចូលក្នុងដំណើរការ OTP / Bypass នេះ
+        if (in_array($user->role, ['admin', 'super_admin'])) {
             $bypassOtp = env('BYPASS_OTP_ON_LOCAL', false);
 
             if ($bypassOtp) {
+                // 🌟 បន្ថែមខ្លី៖ បើ Bypass ហើយ គួរតែ Update email_verified_at ឱ្យគាត់ផង កុំឱ្យវា null រហូត
+                if ($user->email_verified_at === null) {
+                    $user->update(['email_verified_at' => now()]);
+                }
+
                 $token = $user->createToken('api_token')->plainTextToken;
                 $data = ['user' => new UserResource($user->load('profile')), 'token' => $token];
                 return $this->sendResponse($data, 'Local Testing: Admin 2FA Bypassed. Login successful.', 200);
@@ -201,7 +208,7 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        if ($user->role !== 'admin') {
+        if (!in_array($user->role, ['admin', 'super_admin'])) {
             return $this->sendError('Unauthorized access.', [], 403);
         }
 
@@ -312,7 +319,7 @@ class AuthController extends Controller
         $user = $request->user();
 
         if (!Hash::check($request->current_password, $user->password)) {
-            return response()->json(['success' => false, 'message' => 'Current password is incorrect.'], 422);
+            return $this->sendError('Current password is incorrect.', [], 422);
         }
 
         $user->update(['password' => Hash::make($request->new_password)]); // កុំភ្លេច Hash password ថ្មី!
