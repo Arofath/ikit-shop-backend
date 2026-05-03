@@ -26,6 +26,7 @@ class Product extends Model
         'discount_percent',
         'is_active',
         'is_serialized',
+        'is_recommended'
     ];
 
     protected function casts(): array

@@ -77,6 +77,7 @@ class ProductController extends Controller
             'warranty_id'       => 'nullable|exists:warranties,id',
             'is_active'         => 'boolean',
             'is_serialized'     => 'boolean',
+            'is_recommended'    => 'boolean',
         ]);
 
         return DB::transaction(function () use ($request, $validatedData) {
@@ -94,6 +95,8 @@ class ProductController extends Controller
 
             // 🌟 ដំណោះស្រាយ: កំណត់ Serialized (បើអត់មានបញ្ជូនមក យក False ជា Default ព្រោះទំនិញភាគច្រើនអត់មាន Serial ទេ)
             $validatedData['is_serialized'] = $request->has('is_serialized') ? $request->boolean('is_serialized') : false;
+
+            $validatedData['is_recommended'] = $request->has('is_recommended') ? $request->boolean('is_recommended') : false;
 
             // ដកយក category_ids ចេញពី Array សិន មុននឹង Save
             $categoryIds = $validatedData['category_ids'];
@@ -133,6 +136,7 @@ class ProductController extends Controller
             'warranty_id'       => 'nullable|exists:warranties,id',
             'is_active'         => 'boolean',
             'is_serialized'     => 'boolean',
+            'is_recommended'    => 'boolean',
         ]);
 
         return DB::transaction(function () use ($request, $product, $validatedData) {
@@ -146,6 +150,10 @@ class ProductController extends Controller
             }
             if ($request->has('is_serialized')) {
                 $validatedData['is_serialized'] = $request->boolean('is_serialized');
+            }
+
+            if ($request->has('is_recommended')) {
+                $validatedData['is_recommended'] = $request->boolean('is_recommended');
             }
 
             // ឆែកមើលថាតើមានការបញ្ជូនកែប្រែ Categories ដែរឬទេ

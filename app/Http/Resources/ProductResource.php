@@ -58,6 +58,7 @@ class ProductResource extends JsonResource
             'warranty'       => $this->whenLoaded('warranty'),
             'specs'          => ProductSpecResource::collection($this->whenLoaded('specs')),
             'is_serialized' => (bool) $this->is_serialized,
+            'is_recommended' => (bool) $this->is_recommended,
             'available_serials' => $this->whenLoaded('serials', function () {
                 // ច្រោះយកតែ AVAILABLE
                 return $this->serials->where('status', 'AVAILABLE')->pluck('serial_number');
