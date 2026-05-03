@@ -2,12 +2,13 @@
 
 use App\Http\Controllers\AIGeneratorController;
 use App\Http\Controllers\Api\Admin\{UserManagementController, CategoryController, BrandController, ProductController, ProductImageController, ProductSpecController, ProductStockMovementController, SlideshowController, SupplierController, WarrantyController, ProductSerialController, SettingController};
+use App\Http\Controllers\Api\Admin\DashboardController;
+use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\OrderController as ShopOrderController;
 use App\Http\Controllers\Api\PublicWarrantyController;
 use App\Http\Controllers\Api\UserProfileController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\OrderController as ShopOrderController;
-use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 
 // =============================================================
 // 1. PUBLIC ROUTES (Guests & Customers)
@@ -49,7 +50,8 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
     // 3. ADMIN ONLY ROUTES (Super Admin & Admins)
     // =============================================================
     Route::middleware('role:admin')->prefix('admin')->group(function () {
-
+        // Dashboard Data
+        Route::get('/dashboard', [DashboardController::class, 'index']);
         // User Management
         Route::prefix('users')->group(function () {
             Route::post('/', [UserManagementController::class, 'store']);
