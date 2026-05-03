@@ -5,9 +5,6 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Product;
-use App\Models\Category;
-use App\Models\Brand;
-use App\Models\ProductSerial;
 use App\Models\ProductStockMovement;
 
 class DashboardController extends Controller
@@ -15,75 +12,88 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         // ==========================================
-        // ១. ទិន្នន័យសង្ខេប (Summary Cards / KPIs)
+        // ១. KPIs (Summary Cards) - E-commerce Focus
         // ==========================================
         $summary = [
-            'total_products'   => Product::count(),
-            'active_products'  => Product::where('is_active', true)->count(),
-            'total_categories' => Category::count(),
-            'total_brands'     => Brand::count(),
+            'total_revenue'   => 24500.50, // Mock: ចំណូលសរុបខែនេះ
+            'total_orders'    => 1254,     // Mock: ចំនួន Order ខែនេះ
+            'active_customers' => 890,      // Mock: អតិថិជនសកម្ម
+            'pending_orders'  => 45,       // Mock: Order មិនទាន់ដោះស្រាយ
 
-            // ទិន្នន័យស្តុក
-            'available_serials' => ProductSerial::where('status', 'AVAILABLE')->count(),
-            'defective_serials' => ProductSerial::where('status', 'DEFECTIVE')->count(),
-
-            // 🌟 ទិន្នន័យបណ្ដោះអាសន្ន (Mock Data) សម្រាប់ Order
-            'orders' => [
-                'total_orders'    => 1254,
-                'pending_orders'  => 45,
-                'monthly_revenue' => 24500.50, // គិតជាដុល្លារ
-                'total_customers' => 890,
-            ]
+            // ទុកទិន្នន័យ Product ខ្លះក្រែងលោត្រូវការ
+            'total_products'  => Product::count(),
         ];
 
         // ==========================================
-        // ២. ការដាស់តឿនស្តុក (Inventory Alerts)
+        // ២. Chart Data (Revenue & Orders 6 ខែចុងក្រោយ)
         // ==========================================
-        // ប្រើប្រាស់ Subquery ដ៏មានប្រសិទ្ធភាពដើម្បីទាញយកស្តុកបច្ចុប្បន្ន
+        $chartData = [
+            'labels'  => ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'],
+            'revenue' => [18500, 21000, 19000, 24800, 22000, 24500.50],
+            'orders'  => [850, 1050, 920, 1150, 1020, 1254]
+        ];
+
+        // ==========================================
+        // ៣. Sales Activities (Recent Orders & Top Selling)
+        // ==========================================
+        $salesActivities = [
+            // Mock: តារាង Order ថ្មីៗ
+            'recent_orders' => [
+                ['id' => '#ORD-001', 'customer' => 'Sok Dara', 'total' => 1250.00, 'status' => 'PENDING', 'date' => '2 mins ago'],
+                ['id' => '#ORD-002', 'customer' => 'Chan Minea', 'total' => 85.50, 'status' => 'PAID', 'date' => '1 hour ago'],
+                ['id' => '#ORD-003', 'customer' => 'John Doe', 'total' => 3400.00, 'status' => 'SHIPPED', 'date' => '3 hours ago'],
+                ['id' => '#ORD-004', 'customer' => 'Meas Sreypich', 'total' => 450.00, 'status' => 'COMPLETED', 'date' => '5 hours ago'],
+            ],
+
+            // យក Product ពិតប្រាកដមកលាយជាមួយចំនួនលក់ក្លែងក្លាយ
+            'top_selling_products' => Product::select('id', 'name', 'sku', 'price')
+                ->with('thumbnail')
+                ->latest()
+                ->take(4) // យកតែ ៤ មុខ
+                ->get()
+                ->map(function ($product) {
+                    $product->sold_qty = rand(50, 200); // Mock: ចំនួនលក់
+                    return $product;
+                })->sortByDesc('sold_qty')->values()
+        ];
+
+        // ==========================================
+        // ៤. Secondary Info (Stock Alerts & Recent Customers)
+        // ==========================================
         $stockSubquery = ProductStockMovement::selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0)")
             ->whereColumn('product_stock_movements.product_id', 'products.id');
 
         $productsWithStock = Product::select('id', 'name', 'sku')
             ->selectSub($stockSubquery, 'current_stock')
-            // ទាញយកតែអ្នកដែលស្តុកក្រោម ឬស្មើ ៥ (ជិតអស់ ឬអស់)
             ->having('current_stock', '<=', 5)
-            ->with('thumbnail') // ភ្ជាប់រូបភាពមកជាមួយ
+            ->with('thumbnail')
             ->get();
 
-        // បំបែកជា ២ ក្រុម៖ ជិតអស់ (១ ទៅ ៥) និង អស់ស្តុក (<= ០)
-        $lowStock = $productsWithStock->where('current_stock', '>', 0)->values();
-        $outOfStock = $productsWithStock->where('current_stock', '<=', 0)->values();
-
         $alerts = [
-            'low_stock'    => $lowStock,
-            'out_of_stock' => $outOfStock,
+            // យកតែ ៤ មុខដែលជិតអស់ ឬអស់ស្តុក ដើម្បីកុំឱ្យចង្អៀត UI
+            'low_stock' => $productsWithStock->where('current_stock', '>', 0)->take(4)->values(),
+            'out_of_stock' => $productsWithStock->where('current_stock', '<=', 0)->take(4)->values(),
+        ];
+
+        $recentCustomers = [
+            ['name' => 'Alice Smith', 'email' => 'alice@example.com', 'joined' => 'Today'],
+            ['name' => 'Bob Johnson', 'email' => 'bob@example.com', 'joined' => 'Yesterday'],
+            ['name' => 'Virak Roth', 'email' => 'virak.roth@example.com', 'joined' => '2 days ago'],
         ];
 
         // ==========================================
-        // ៣. សកម្មភាពថ្មីៗ (Recent Activities)
+        // ៥. ផ្គុំទិន្នន័យបញ្ជូនទៅ Frontend
         // ==========================================
-        $recentActivities = [
-            // ស្តុកដែលទើបតែមានចលនាចេញចូល ៨ ចុងក្រោយ
-            'recent_stock_movements' => ProductStockMovement::with(['product:id,name,sku', 'supplier:id,name'])
-                ->latest()
-                ->take(8)
-                ->get(),
-
-            // ផលិតផលដែលទើបតែបន្ថែមថ្មីៗ ៥ ចុងក្រោយ
-            'recently_added_products' => Product::select('id', 'name', 'sku', 'price', 'created_at')
-                ->with('thumbnail')
-                ->latest()
-                ->take(5)
-                ->get(),
-        ];
-
-        // ==========================================
-        // ៤. ផ្គុំទិន្នន័យបញ្ជូនទៅ Frontend
-        // ==========================================
-        return $this->sendResponse([
-            'summary'    => $summary,
-            'alerts'     => $alerts,
-            'activities' => $recentActivities
-        ], 'Dashboard data retrieved successfully.');
+        return response()->json([
+            'success' => true,
+            'message' => 'E-commerce Dashboard data retrieved successfully.',
+            'data' => [
+                'summary'          => $summary,
+                'chart_data'       => $chartData,
+                'sales_activities' => $salesActivities,
+                'alerts'           => $alerts,
+                'recent_customers' => $recentCustomers
+            ]
+        ]);
     }
 }
