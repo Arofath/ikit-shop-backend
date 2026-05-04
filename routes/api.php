@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Admin\{UserManagementController, CategoryController
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\OrderController as ShopOrderController;
 use App\Http\Controllers\Api\PublicWarrantyController;
 use App\Http\Controllers\Api\UserProfileController;
@@ -33,6 +34,10 @@ Route::get('/brands', [BrandController::class, 'index']);
 Route::get('/slideshows', [SlideshowController::class, 'index']);
 // Public Route (អតិថិជនប្រើ)
 Route::get('check-warranty', [PublicWarrantyController::class, 'check']);
+
+// Home Page Data (Recommended + New Arrivals)
+Route::get('/home', [HomeController::class, 'index']);
+
 // =============================================================
 // 2. PROTECTED ROUTES (Logged-in Users)
 // =============================================================
@@ -62,7 +67,6 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::delete('/{id}', [UserManagementController::class, 'destroy']);
         });
 
-        // Simplified Resources
         // Categories
         Route::apiResource('categories', CategoryController::class);
         Route::post('categories/{category}/upload-image', [CategoryController::class, 'uploadImage']);
@@ -168,8 +172,6 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             // កែប្រែស្ថានភាព (ប៊ូតុង Mark as Shipped)
             Route::patch('/orders/{id}/status', [AdminOrderController::class, 'updateStatus']);
         });
-
-
     });
 
     Route::prefix('shop')->group(function () {
