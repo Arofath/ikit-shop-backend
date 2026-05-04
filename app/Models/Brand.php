@@ -19,6 +19,7 @@ class Brand extends Model
         'logo',
         'is_active',
         'is_top',
+        'sort_order',
     ];
 
     protected function casts(): array
