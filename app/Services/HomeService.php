@@ -17,13 +17,13 @@ class HomeService
                 ->where('is_active', true)
                 ->where('is_recommended', true)
                 ->latest()
-                ->take(8)
+                ->take(10)
                 ->get();
 
             $newArrivals = Product::with(['thumbnail', 'brand'])
                 ->where('is_active', true)
                 ->latest('created_at')
-                ->take(8)
+                ->take(10)
                 ->get();
 
             return [
