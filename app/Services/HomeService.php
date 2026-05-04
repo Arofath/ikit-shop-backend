@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Brand;
 use App\Models\Product;
 use Illuminate\Support\Facades\Cache;
 
@@ -26,9 +27,15 @@ class HomeService
                 ->take(10)
                 ->get();
 
+            $topBrands = Brand::where('is_active', true)
+                ->where('is_top', true) // យកតែ Brand ណាដែល Admin ជ្រើសរើស
+                ->take(6)
+                ->get();
+
             return [
                 'recommended'  => $recommended,
                 'new_arrivals' => $newArrivals,
+                'top_brands'    => $topBrands,
             ];
         });
     }
