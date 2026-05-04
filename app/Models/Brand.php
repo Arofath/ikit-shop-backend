@@ -18,6 +18,7 @@ class Brand extends Model
         'slug',
         'logo',
         'is_active',
+        'is_top',
     ];
 
     protected function casts(): array

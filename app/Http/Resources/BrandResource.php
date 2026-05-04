@@ -20,6 +20,7 @@ class BrandResource extends JsonResource
             'slug'       => $this->slug,
             'logo'       => $this->logo,
             'is_active'  => (bool) $this->is_active,
+            'is_top' => (bool) $this->is_top,
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at->format('Y-m-d H:i:s'),
         ];

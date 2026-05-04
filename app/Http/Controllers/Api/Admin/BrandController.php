@@ -36,12 +36,14 @@ class BrandController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255|unique:brands,name',
+            'is_top'    => 'boolean',
         ]);
 
         $brand = Brand::create([
             'name'      => $request->name,
             'slug'      => Str::slug($request->name),
             'is_active' => true,
+            'is_top'    => $request->has('is_top') ? $request->boolean('is_top') : false,
         ]);
 
         return response()->json([
@@ -71,6 +73,7 @@ class BrandController extends Controller
         $request->validate([
             'name'      => 'sometimes|required|string|max:255|unique:brands,name,' . $id,
             'is_active' => 'boolean',
+            'is_top'    => 'boolean',
         ]);
 
         $updateData = [];
@@ -82,6 +85,10 @@ class BrandController extends Controller
 
         if ($request->has('is_active')) {
             $updateData['is_active'] = $request->boolean('is_active');
+        }
+
+        if ($request->has('is_top')) {
+            $updateData['is_top'] = $request->boolean('is_top');
         }
 
         if (!empty($updateData)) {
