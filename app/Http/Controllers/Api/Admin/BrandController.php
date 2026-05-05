@@ -23,12 +23,11 @@ class BrandController extends Controller
                 return $query->where('is_active', $request->boolean('is_active'));
             })
 
-            // 🌟 ១. បន្ថែម Filter សម្រាប់ Storefront Layout
-            ->when($request->has('is_top'), function ($query) use ($request) {
+            // 🌟 ប្តូរពី has ទៅ filled ដូចគ្នា
+            ->when($request->filled('is_top'), function ($query) use ($request) {
                 return $query->where('is_top', $request->boolean('is_top'));
             })
 
-            // 🌟 ២. រៀបចំលំដាប់ (Sorting)
             ->when($request->get('sort_by') === 'sort_order', function ($q) {
                 $q->orderByRaw('sort_order = 0, sort_order ASC')->latest();
             }, function ($q) {

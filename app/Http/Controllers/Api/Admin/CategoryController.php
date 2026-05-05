@@ -18,16 +18,15 @@ class CategoryController extends Controller
         $status = $request->query('status');
         $query = Category::query();
 
-        // Filter តាម Status ទូទៅ
         if ($status === 'active') {
             $query->where('is_active', true);
         } elseif ($status === 'inactive') {
             $query->where('is_active', false);
         }
 
-        // 🌟 ១. តើវាហៅមកពីទំព័រ Storefront (សុំមើល Popular) មែនទេ?
-        if ($request->has('is_popular')) {
-            // យកអ្នក Popular ទាំងអស់ (ទោះជាមេ ឬកូនក៏ដោយ)
+        // 🌟 ១. ប្តូរពី has('is_popular') ទៅជា filled('is_popular') ទើបវាចាប់បានតម្លៃ '1' ឬ 'true' ច្បាស់លាស់
+        if ($request->filled('is_popular')) {
+
             $query->where('is_popular', $request->boolean('is_popular'));
 
             if ($request->get('sort_by') === 'sort_order') {
@@ -36,7 +35,7 @@ class CategoryController extends Controller
                 $query->orderBy('name');
             }
         } else {
-            // 🌟 ២. បើហៅពីទំព័រ Category ធម្មតា គឺបង្ហាញជាលក្ខណៈមេ-កូន (Tree)
+            // ២. នេះជាទំព័រ Category ធម្មតា
             $query->whereNull('parent_id')
                 ->with(['children' => function ($q) use ($status) {
                     $q->orderBy('name', 'asc');
@@ -54,10 +53,9 @@ class CategoryController extends Controller
 
         return $this->sendResponse(
             CategoryResource::collection($categories),
-            $request->has('is_popular') ? 'Popular categories retrieved successfully.' : 'Categories tree retrieved successfully.'
+            $request->filled('is_popular') ? 'Popular categories retrieved successfully.' : 'Categories tree retrieved successfully.'
         );
     }
-    
 
     // Show category detail
     public function show(string $id)
