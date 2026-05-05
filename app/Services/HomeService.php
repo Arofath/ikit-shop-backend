@@ -47,6 +47,7 @@ class HomeService
                 ->with(['children' => function ($query) {
                     // ទាញយកកូនដែល Active និងតម្រៀបតាមលេខរៀង
                     $query->where('is_active', true)
+                        ->where('is_popular', true)
                         ->orderByRaw('sort_order = 0, sort_order ASC')
                         ->latest();
                 }])
