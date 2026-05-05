@@ -267,4 +267,26 @@ class ProductController extends Controller
             'out_of_stock'    => $outOfStock,
         ], 'Product stats retrieved successfully.');
     }
+
+    public function reorder(Request $request)
+    {
+        $request->validate([
+            'items' => 'required|array',
+            'items.*.id' => 'required|exists:products,id',
+            'items.*.sort_order' => 'required|integer',
+        ]);
+
+        // ប្រើប្រាស់ Transaction ដើម្បីធានាថាវា Update ជោគជ័យទាំងអស់ ទើប Save
+        DB::transaction(function () use ($request) {
+            foreach ($request->items as $item) {
+                // Update លេខរៀងម្តងមួយៗ (លឿនគ្រប់គ្រាន់សម្រាប់ទិន្នន័យ ១០ ទៅ ៥០ មុខ)
+                Product::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Product order updated successfully.'
+        ]);
+    }
 }

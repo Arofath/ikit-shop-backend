@@ -164,4 +164,24 @@ class BrandController extends Controller
             ], 200);
         });
     }
+
+    public function reorder(Request $request)
+    {
+        $request->validate([
+            'items' => 'required|array',
+            'items.*.id' => 'required|exists:brands,id',
+            'items.*.sort_order' => 'required|integer',
+        ]);
+
+        DB::transaction(function () use ($request) {
+            foreach ($request->items as $item) {
+                Brand::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Brand order updated successfully.'
+        ]);
+    }
 }

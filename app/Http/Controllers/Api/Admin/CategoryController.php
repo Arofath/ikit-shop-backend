@@ -68,7 +68,6 @@ class CategoryController extends Controller
             'name'      => 'required|string|max:255',
             'parent_id' => 'nullable|exists:categories,id',
             'is_popular' => 'boolean',          
-            'sort_order' => 'nullable|integer',
         ]);
 
         $category = Category::create([
@@ -77,7 +76,6 @@ class CategoryController extends Controller
             'parent_id' => $request->parent_id,
             'is_active' => $request->boolean('is_active', true),
             'is_popular' => $request->boolean('is_popular', false),
-            'sort_order' => $request->get('sort_order', 0),
         ]);
 
         return $this->sendResponse(new CategoryResource($category), 'Category created successfully.', 201);
@@ -93,7 +91,6 @@ class CategoryController extends Controller
             'parent_id' => 'nullable|exists:categories,id',
             'is_active' => 'boolean',
             'is_popular' => 'boolean',
-            'sort_order' => 'nullable|integer',
         ]);
 
         // ការពារមិនឱ្យយកខ្លួនឯងធ្វើជា Parent
@@ -118,10 +115,6 @@ class CategoryController extends Controller
 
         if ($request->has('is_popular')) {
             $updateData['is_popular'] = $request->boolean('is_popular');
-        }
-
-        if ($request->has('sort_order')) {
-            $updateData['sort_order'] = $request->get('sort_order');
         }
 
         if (!empty($updateData)) {
@@ -190,5 +183,26 @@ class CategoryController extends Controller
         $slug = Str::slug($name);
         $count = Category::where('slug', $slug)->when($id, fn($q) => $q->where('id', '!=', $id))->count();
         return $count > 0 ? "{$slug}-" . time() : $slug;
+    }
+
+    public function reorder(Request $request)
+    {
+        $request->validate([
+            'items' => 'required|array',
+            'items.*.id' => 'required|exists:categories,id',
+            'items.*.sort_order' => 'required|integer',
+        ]);
+
+        DB::transaction(function () use ($request) {
+            foreach ($request->items as $item) {
+                // Update តែ sort_order មួយមុខប៉ុណ្ណោះ
+                Category::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Category order updated successfully.'
+        ]);
     }
 }
