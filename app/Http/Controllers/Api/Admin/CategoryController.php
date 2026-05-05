@@ -15,37 +15,46 @@ class CategoryController extends Controller
     // List categories as tree
     public function index(Request $request)
     {
-        // ១. ចាប់យកតម្លៃ status ពី URL (?status=active ឬ ?status=inactive)
         $status = $request->query('status');
+        $query = Category::query();
 
-        // ២. ចាប់ផ្តើមសរសេរ Query សម្រាប់ Category មេ
-        $query = Category::whereNull('parent_id');
-
-        // ៣. ដាក់លក្ខខណ្ឌ Filter សម្រាប់ Category មេ
+        // Filter តាម Status ទូទៅ
         if ($status === 'active') {
             $query->where('is_active', true);
         } elseif ($status === 'inactive') {
             $query->where('is_active', false);
         }
 
-        // ៤. ទាញយកកូនៗ (Children) ព្រមទាំងដាក់លក្ខខណ្ឌ Filter ទៅឲ្យកូនៗដូចគ្នា
-        $query->with(['children' => function ($q) use ($status) {
-            $q->orderBy('name', 'asc');
+        // 🌟 ១. តើវាហៅមកពីទំព័រ Storefront (សុំមើល Popular) មែនទេ?
+        if ($request->has('is_popular')) {
+            // យកអ្នក Popular ទាំងអស់ (ទោះជាមេ ឬកូនក៏ដោយ)
+            $query->where('is_popular', $request->boolean('is_popular'));
 
-            // បើគេចង់បានតែ Active កូនៗក៏ត្រូវតែ Active ដែរ
-            if ($status === 'active') {
-                $q->where('is_active', true);
-            } elseif ($status === 'inactive') {
-                $q->where('is_active', false);
+            if ($request->get('sort_by') === 'sort_order') {
+                $query->orderByRaw('sort_order = 0, sort_order ASC')->latest();
+            } else {
+                $query->orderBy('name');
             }
-        }]);
+        } else {
+            // 🌟 ២. បើហៅពីទំព័រ Category ធម្មតា គឺបង្ហាញជាលក្ខណៈមេ-កូន (Tree)
+            $query->whereNull('parent_id')
+                ->with(['children' => function ($q) use ($status) {
+                    $q->orderBy('name', 'asc');
 
-        // ៥. បញ្ចប់ Query ដោយតម្រៀបឈ្មោះ និងទាញយកទិន្នន័យ
-        $categories = $query->orderBy('name')->get();
+                    if ($status === 'active') {
+                        $q->where('is_active', true);
+                    } elseif ($status === 'inactive') {
+                        $q->where('is_active', false);
+                    }
+                }])
+                ->orderBy('name');
+        }
+
+        $categories = $query->get();
 
         return $this->sendResponse(
             CategoryResource::collection($categories),
-            'Categories tree retrieved successfully.'
+            $request->has('is_popular') ? 'Popular categories retrieved successfully.' : 'Categories tree retrieved successfully.'
         );
     }
     

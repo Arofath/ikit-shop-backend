@@ -15,12 +15,24 @@ class BrandController extends Controller
     // ១. បង្ហាញបញ្ជី Brand (រក្សាដដែល)
     public function index(Request $request)
     {
-        $brands = Brand::latest()
+        $brands = Brand::query()
             ->when($request->filled('search'), function ($query) use ($request) {
                 return $query->where('name', 'like', "%{$request->search}%");
             })
             ->when($request->filled('is_active'), function ($query) use ($request) {
                 return $query->where('is_active', $request->boolean('is_active'));
+            })
+
+            // 🌟 ១. បន្ថែម Filter សម្រាប់ Storefront Layout
+            ->when($request->has('is_top'), function ($query) use ($request) {
+                return $query->where('is_top', $request->boolean('is_top'));
+            })
+
+            // 🌟 ២. រៀបចំលំដាប់ (Sorting)
+            ->when($request->get('sort_by') === 'sort_order', function ($q) {
+                $q->orderByRaw('sort_order = 0, sort_order ASC')->latest();
+            }, function ($q) {
+                $q->latest();
             })
             ->paginate($request->get('per_page', 10));
 

@@ -16,9 +16,7 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $products = Product::query()
-            // 🌟 ១. ត្រូវប្រាកដថា Select យកទិន្នន័យពី Table products ទាំងអស់សិន
             ->select('products.*')
-            // 🌟 ២. បន្ថែមការគណនាស្តុក (current_stock) ដោយបូកដកទិន្នន័យពី product_stock_movements
             ->selectSub(function ($query) {
                 $query->selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0)")
                     ->from('product_stock_movements')
@@ -43,7 +41,18 @@ class ProductController extends Controller
             })
             ->when($request->filled('brand_id'), fn($q) => $q->where('brand_id', $request->brand_id))
             ->when($request->has('is_active'), fn($q) => $q->where('is_active', $request->boolean('is_active')))
-            ->latest()
+
+            // 🌟 ១. បន្ថែម Filter សម្រាប់ Storefront Layout
+            ->when($request->has('is_recommended'), fn($q) => $q->where('is_recommended', $request->boolean('is_recommended')))
+
+            // 🌟 ២. រៀបចំលំដាប់ (Sorting) ជំនួសឱ្យការប្រើត្រឹម ->latest()
+            ->when($request->get('sort_by') === 'sort_order', function ($q) {
+                // អ្នកអត់លេខ (0) ទៅក្រោមគេ ហើយរៀបលេខពីតូចទៅធំ
+                $q->orderByRaw('sort_order = 0, sort_order ASC')->latest();
+            }, function ($q) {
+                // បើអត់បញ្ជូន sort_by មកទេ (ទំព័រ Product ធម្មតា) គឺប្រើចុងក្រោយគេ
+                $q->latest();
+            })
             ->paginate($request->get('per_page', 10));
 
         return $this->sendResponse(
