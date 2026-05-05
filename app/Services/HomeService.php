@@ -43,7 +43,8 @@ class HomeService
                 ->where('is_popular', true)
                 ->orderByRaw('sort_order = 0, sort_order ASC')
                 ->latest()
-                ->with(['subCategories' => function ($query) {
+                // 🌟 ១. ប្តូរពី subCategories ទៅជា children
+                ->with(['children' => function ($query) {
                     // ទាញយកកូនដែល Active និងតម្រៀបតាមលេខរៀង
                     $query->where('is_active', true)
                         ->orderByRaw('sort_order = 0, sort_order ASC')
@@ -52,8 +53,8 @@ class HomeService
                 ->take(8) // យក Category មេតែ ៨ មុខ
                 ->get()
                 ->map(function ($category) {
-                    // ប្រើប្រាស់វិធីសាស្ត្រនេះដើម្បីកំណត់ឱ្យយក Sub-categories តែ ៣ ក្នុងមួយមេ
-                    $category->setRelation('parent', $category->subCategories->take(3));
+                    // 🌟 ២. ប្តូរទៅកំណត់ relation 'children' វិញ
+                    $category->setRelation('children', $category->children->take(3));
                     return $category;
                 });
 
