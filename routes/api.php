@@ -68,13 +68,13 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         });
 
         // Categories
+        Route::put('/categories/reorder', [CategoryController::class, 'reorder']);
         Route::apiResource('categories', CategoryController::class);
         Route::post('categories/{category}/upload-image', [CategoryController::class, 'uploadImage']);
-        Route::put('/categories/reorder', [CategoryController::class, 'reorder']);
         // Brands
+        Route::put('/brands/reorder', [BrandController::class, 'reorder']);
         Route::apiResource('brands', BrandController::class);
         Route::post('brands/{brand}/upload-logo', [BrandController::class, 'uploadLogo']);
-        Route::put('/brands/reorder', [BrandController::class, 'reorder']);
 
         // Suppliers
         Route::delete('suppliers/{supplier}', [SupplierController::class, 'destroy']);
@@ -90,11 +90,11 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::prefix('products')->group(function () {
             Route::post('/', [ProductController::class, 'store']);
             Route::get('/', [ProductController::class, 'index']);
+            Route::put('/reorder', [ProductController::class, 'reorder']);
             Route::get('/stats', [ProductController::class, 'getStats']);
             Route::get('/{id}', [ProductController::class, 'show']);
             Route::put('/{id}', [ProductController::class, 'update']);
             Route::delete('/{id}', [ProductController::class, 'destroy']); // Soft Delete
-            Route::put('/reorder', [ProductController::class, 'reorder']);
 
             // មុខងារបន្ថែមសម្រាប់ Soft Deletes (Trash Management)
             Route::get('/trash/all', [ProductController::class, 'trash']); // មើលផលិតផលក្នុង Trash
