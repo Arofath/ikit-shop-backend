@@ -59,12 +59,26 @@ class HomeService
                     return $category;
                 });
 
+            $sidebarCategories = Category::whereNull('parent_id') // យកតែមេ
+                ->where('is_active', true)
+                // 🚫 មិនបាច់ដាក់លក្ខខណ្ឌ is_popular ទេ ព្រោះចង់បង្ហាញទាំងអស់
+                ->orderByRaw('sort_order = 0, sort_order ASC')
+                ->latest()
+                ->with(['children' => function ($query) {
+                    // ទាញយកកូនទាំងអស់ដែល Active (មិនកំណត់ត្រឹម ៣ មុខទេ)
+                    $query->where('is_active', true)
+                        ->orderByRaw('sort_order = 0, sort_order ASC')
+                        ->latest();
+                }])
+                ->get(); // ទាញយកទាំងអស់ (បើមានច្រើនពេក អាចដាក់ ->take(10) ទៅតាមតម្រូវការ)
+
             // បោះទិន្នន័យទាំងអស់ទៅកាន់ Frontend
             return [
                 'recommended'        => $recommended,
                 'new_arrivals'       => $newArrivals,
                 'top_brands'         => $topBrands,
                 'popular_categories' => $popularCategories,
+                'sidebar_categories' => $sidebarCategories,
             ];
         });
     }
