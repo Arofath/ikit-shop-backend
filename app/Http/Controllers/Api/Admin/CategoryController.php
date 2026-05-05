@@ -28,7 +28,7 @@ class CategoryController extends Controller
         // 🌟 ១. ប្តូរពី has('is_popular') ទៅជា filled('is_popular') ទើបវាចាប់បានតម្លៃ '1' ឬ 'true' ច្បាស់លាស់
         if ($request->filled('is_popular')) {
 
-            $query->where('is_popular', $request->boolean('is_popular'));
+            $query->where('is_popular', $request->boolean('is_popular'))->with('parent');
 
             if ($request->get('sort_by') === 'sort_order') {
                 $query->orderByRaw('sort_order = 0, sort_order ASC')->latest();

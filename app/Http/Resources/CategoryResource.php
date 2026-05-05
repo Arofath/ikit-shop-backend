@@ -23,6 +23,7 @@ class CategoryResource extends JsonResource
             'is_active'   => (bool) $this->is_active,
             // ការបង្ហាញ sub-categories (Nested)
             'children'    => CategoryResource::collection($this->whenLoaded('children')),
+            'parent' => new CategoryResource($this->whenLoaded('parent')),
             'is_popular'  => (bool) $this->is_popular,
             'sort_order'  => $this->sort_order,
             'created_at'  => $this->created_at->format('Y-m-d H:i:s'),
