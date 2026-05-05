@@ -67,6 +67,8 @@ class CategoryController extends Controller
         $request->validate([
             'name'      => 'required|string|max:255',
             'parent_id' => 'nullable|exists:categories,id',
+            'is_popular' => 'boolean',          
+            'sort_order' => 'nullable|integer',
         ]);
 
         $category = Category::create([
@@ -74,6 +76,8 @@ class CategoryController extends Controller
             'slug'      => $this->generateUniqueSlug($request->name),
             'parent_id' => $request->parent_id,
             'is_active' => $request->boolean('is_active', true),
+            'is_popular' => $request->boolean('is_popular', false),
+            'sort_order' => $request->get('sort_order', 0),
         ]);
 
         return $this->sendResponse(new CategoryResource($category), 'Category created successfully.', 201);
@@ -88,6 +92,8 @@ class CategoryController extends Controller
             'name'      => 'sometimes|required|string|max:255',
             'parent_id' => 'nullable|exists:categories,id',
             'is_active' => 'boolean',
+            'is_popular' => 'boolean',
+            'sort_order' => 'nullable|integer',
         ]);
 
         // ការពារមិនឱ្យយកខ្លួនឯងធ្វើជា Parent
@@ -108,6 +114,14 @@ class CategoryController extends Controller
 
         if ($request->has('is_active')) {
             $updateData['is_active'] = $request->boolean('is_active');
+        }
+
+        if ($request->has('is_popular')) {
+            $updateData['is_popular'] = $request->boolean('is_popular');
+        }
+
+        if ($request->has('sort_order')) {
+            $updateData['sort_order'] = $request->get('sort_order');
         }
 
         if (!empty($updateData)) {
