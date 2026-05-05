@@ -4,11 +4,12 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductResource;
-use Illuminate\Http\Request;
 use App\Models\Product;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
 use App\Services\CloudinaryStorageService; // 🌟 ប្តូរមកប្រើ Cloudinary
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
@@ -292,6 +293,8 @@ class ProductController extends Controller
                 Product::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
             }
         });
+
+        Cache::forget('home_page_data');
 
         return response()->json([
             'success' => true,

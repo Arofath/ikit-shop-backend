@@ -3,12 +3,13 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Category;
 use App\Http\Resources\CategoryResource;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
+use App\Models\Category;
 use App\Services\CloudinaryStorageService; // 🌟 ហៅប្រើ Cloudinary Service
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class CategoryController extends Controller
 {
@@ -206,6 +207,8 @@ class CategoryController extends Controller
                 Category::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
             }
         });
+
+        Cache::forget('home_page_data');
 
         return response()->json([
             'success' => true,

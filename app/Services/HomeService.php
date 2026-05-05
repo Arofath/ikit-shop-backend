@@ -10,13 +10,12 @@ class HomeService
 {
     public function getHomepageData()
     {
-        // ដាក់ Cache ទុករយៈពេល ១ ម៉ោង (3600 វិនាទី) 
-        // ឈ្មោះ Cache key: 'home_page_data'
         return Cache::remember('home_page_data', 3600, function () {
 
             $recommended = Product::with(['thumbnail', 'brand'])
                 ->where('is_active', true)
                 ->where('is_recommended', true)
+                ->orderByRaw('sort_order = 0, sort_order ASC') // 🌟 ១. ឱ្យវាគោរពលេខរៀង Admin
                 ->latest()
                 ->take(10)
                 ->get();
@@ -28,7 +27,9 @@ class HomeService
                 ->get();
 
             $topBrands = Brand::where('is_active', true)
-                ->where('is_top', true) // យកតែ Brand ណាដែល Admin ជ្រើសរើស
+                ->where('is_top', true)
+                ->orderByRaw('sort_order = 0, sort_order ASC') // 🌟 ២. ឱ្យវាគោរពលេខរៀង Admin
+                ->latest()
                 ->take(6)
                 ->get();
 

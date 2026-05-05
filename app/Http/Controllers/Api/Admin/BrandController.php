@@ -3,12 +3,13 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Brand;
 use App\Http\Resources\BrandResource;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
+use App\Models\Brand;
 use App\Services\CloudinaryStorageService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class BrandController extends Controller
 {
@@ -189,6 +190,8 @@ class BrandController extends Controller
                 Brand::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
             }
         });
+
+        Cache::forget('home_page_data');
 
         return response()->json([
             'success' => true,
