@@ -52,7 +52,7 @@ class HomeService
                 ->get()
                 ->map(function ($category) {
                     // ប្រើប្រាស់វិធីសាស្ត្រនេះដើម្បីកំណត់ឱ្យយក Sub-categories តែ ៣ ក្នុងមួយមេ
-                    $category->setRelation('subCategories', $category->subCategories->take(3));
+                    $category->setRelation('parent', $category->subCategories->take(3));
                     return $category;
                 });
 
