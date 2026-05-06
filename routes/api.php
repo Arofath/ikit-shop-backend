@@ -4,6 +4,7 @@ use App\Http\Controllers\AIGeneratorController;
 use App\Http\Controllers\Api\Admin\{UserManagementController, CategoryController, BrandController, ProductController, ProductImageController, ProductSpecController, ProductStockMovementController, SlideshowController, SupplierController, WarrantyController, ProductSerialController, SettingController};
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
+use App\Http\Controllers\Api\Admin\SystemController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\OrderController as ShopOrderController;
@@ -175,6 +176,8 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             // កែប្រែស្ថានភាព (ប៊ូតុង Mark as Shipped)
             Route::patch('/orders/{id}/status', [AdminOrderController::class, 'updateStatus']);
         });
+
+        Route::post('/system/clear-cache', [SystemController::class, 'clearCache']);
     });
 
     Route::prefix('shop')->group(function () {

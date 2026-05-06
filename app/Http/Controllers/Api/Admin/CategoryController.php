@@ -86,6 +86,8 @@ class CategoryController extends Controller
             'is_popular' => $request->boolean('is_popular', false),
         ]);
 
+        Cache::forget('home_page_data');
+
         return $this->sendResponse(new CategoryResource($category), 'Category created successfully.', 201);
     }
 
@@ -128,6 +130,8 @@ class CategoryController extends Controller
         if (!empty($updateData)) {
             $category->update($updateData);
         }
+
+        Cache::forget('home_page_data');
 
         return $this->sendResponse(new CategoryResource($category), 'Category updated successfully.');
     }

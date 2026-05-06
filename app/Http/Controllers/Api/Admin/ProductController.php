@@ -118,6 +118,8 @@ class ProductController extends Controller
             // ភ្ជាប់ Categories
             $product->categories()->sync($categoryIds);
 
+            Cache::forget('home_page_data');
+
             return $this->sendResponse(new ProductResource($product->load('categories')), 'Product created successfully.', 201);
         });
     }
@@ -174,7 +176,7 @@ class ProductController extends Controller
             }
 
             $product->update($validatedData);
-
+            Cache::forget('home_page_data');
             return $this->sendResponse(new ProductResource($product->load(['categories', 'brand'])), 'Product updated successfully.');
         });
     }
