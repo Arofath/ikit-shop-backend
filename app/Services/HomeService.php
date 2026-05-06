@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Slideshow;
 use Illuminate\Support\Facades\Cache;
 
 class HomeService
@@ -72,6 +73,11 @@ class HomeService
                 }])
                 ->get(); // ទាញយកទាំងអស់ (បើមានច្រើនពេក អាចដាក់ ->take(10) ទៅតាមតម្រូវការ)
 
+            $slideshows = Slideshow::where('is_active', true)
+                ->orderByRaw('sort_order = 0, sort_order ASC') // តម្រៀបតាមលេខរៀង Admin
+                ->latest()
+                ->get();
+
             // បោះទិន្នន័យទាំងអស់ទៅកាន់ Frontend
             return [
                 'recommended'        => $recommended,
@@ -79,6 +85,7 @@ class HomeService
                 'top_brands'         => $topBrands,
                 'popular_categories' => $popularCategories,
                 'sidebar_categories' => $sidebarCategories,
+                'slideshows'         => $slideshows,
             ];
         });
     }
