@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductResource;
 use App\Models\Product;
 use App\Services\CloudinaryStorageService; // 🌟 ប្តូរមកប្រើ Cloudinary
+use App\Services\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,13 @@ use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
+    protected $productService;
+
+    public function __construct(ProductService $productService)
+    {
+        $this->productService = $productService;
+    }
+
     // ១. ទាញបញ្ជីផលិតផល (Admin & Public)
     public function index(Request $request)
     {
@@ -62,12 +70,10 @@ class ProductController extends Controller
         );
     }
 
-    // ២. បង្ហាញតាមរយៈ Slug (សម្រាប់ Frontend)
+    // API សម្រាប់ Storefront (បង្ហាញលើ Website)
     public function showBySlug(string $slug)
     {
-        $product = Product::where('slug', $slug)
-            ->with(['categories', 'brand', 'images', 'specs', 'warranty'])
-            ->firstOrFail();
+        $product = $this->productService->getProductDetailBySlug($slug);
 
         return $this->sendResponse(new ProductResource($product), 'Product detail fetched.');
     }
