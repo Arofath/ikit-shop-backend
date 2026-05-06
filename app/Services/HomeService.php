@@ -74,7 +74,7 @@ class HomeService
                 ->get(); // ទាញយកទាំងអស់ (បើមានច្រើនពេក អាចដាក់ ->take(10) ទៅតាមតម្រូវការ)
 
             $slideshows = Slideshow::where('is_active', true)
-                ->orderByRaw('sort_order = 0, sort_order ASC') // តម្រៀបតាមលេខរៀង Admin
+                ->orderByRaw('position = 0, position ASC') // តម្រៀបតាមលេខរៀង Admin
                 ->latest()
                 ->get();
 
