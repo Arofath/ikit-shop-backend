@@ -75,7 +75,7 @@ class SlideshowController extends Controller
                     file: $request->file('image'),
                     folder: 'slideshows',
                     oldImageUrl: $slide->image_path,
-                    transformations: ['width' => 1920, 'height' => 800, 'crop' => 'fill', 'quality' => 'auto:best']
+                    transformations: ['width' => 900, 'height' => 450, 'crop' => 'fill', 'quality' => 'auto:best']
                 );
             }
 
