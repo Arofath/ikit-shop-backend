@@ -41,7 +41,7 @@ class SlideshowController extends Controller
             $path = $storage->uploadImage(
                 file: $request->file('image'),
                 folder: 'slideshows',
-                transformations: ['width' => 1920, 'height' => 800, 'crop' => 'fill', 'quality' => 'auto:best']
+                transformations: ['width' => 1000, 'height' => 500, 'crop' => 'fill', 'quality' => 'auto:best']
             );
 
             $slide = Slideshow::create([
