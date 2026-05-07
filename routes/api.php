@@ -25,6 +25,7 @@ Route::middleware('throttle:10,1')->group(function () {
 
 Route::prefix('products')->group(function () {
     Route::get('/', [ProductController::class, 'index']);
+    Route::get('/{slug}/related', [ProductController::class, 'getRelatedProducts']);
     Route::get('/{slug}', [ProductController::class, 'showBySlug']);
     Route::get('/{product:slug}/images', [ProductImageController::class, 'index']);
 });

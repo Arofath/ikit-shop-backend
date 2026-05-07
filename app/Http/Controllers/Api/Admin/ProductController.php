@@ -78,6 +78,17 @@ class ProductController extends Controller
         return $this->sendResponse(new ProductResource($product), 'Product detail fetched.');
     }
 
+    public function getRelatedProducts(string $slug)
+    {
+        $relatedProducts = $this->productService->getRelatedProductsBySlug($slug);
+
+        // យើងប្រើ ProductResource::collection ព្រោះវាជា Array នៃទំនិញច្រើន
+        return $this->sendResponse(
+            ProductResource::collection($relatedProducts),
+            'Related products fetched successfully.'
+        );
+    }
+
     // ៣. បង្កើតផលិតផលថ្មី
     public function store(Request $request)
     {
