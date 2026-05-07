@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductResource;
+use App\Http\Resources\StorefrontProductResource;
 use App\Models\Product;
 use App\Services\CloudinaryStorageService; // 🌟 ប្តូរមកប្រើ Cloudinary
 use App\Services\ProductService;
@@ -70,21 +71,30 @@ class ProductController extends Controller
         );
     }
 
+    public function storefrontIndex(Request $request)
+    {
+        $products = $this->productService->getAllProducts($request);
+
+        return $this->sendResponse(
+            StorefrontProductResource::collection($products)->response()->getData(true),
+            'Storefront products fetched successfully.'
+        );
+    }
+
     // API សម្រាប់ Storefront (បង្ហាញលើ Website)
     public function showBySlug(string $slug)
     {
         $product = $this->productService->getProductDetailBySlug($slug);
 
-        return $this->sendResponse(new ProductResource($product), 'Product detail fetched.');
+        return $this->sendResponse(new StorefrontProductResource($product), 'Product detail fetched.');
     }
 
     public function getRelatedProducts(string $slug)
     {
         $relatedProducts = $this->productService->getRelatedProductsBySlug($slug);
 
-        // យើងប្រើ ProductResource::collection ព្រោះវាជា Array នៃទំនិញច្រើន
         return $this->sendResponse(
-            ProductResource::collection($relatedProducts),
+            StorefrontProductResource::collection($relatedProducts),
             'Related products fetched successfully.'
         );
     }

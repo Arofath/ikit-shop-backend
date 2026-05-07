@@ -45,4 +45,74 @@ class ProductService
             ->limit($limit)
             ->get();
     }
+
+    public function getAllProducts($request)
+    {
+        $query = Product::where('is_active', true)
+            ->with(['brand', 'categories', 'images']); // Join យកទិន្នន័យដែលចាំបាច់
+
+        // ==========================================
+        // 🌟 ១. មុខងារត្រងទិន្នន័យ (Filters)
+        // ==========================================
+
+        // ត្រងតាម Category Slug
+        if ($request->has('category')) {
+            $query->whereHas('categories', function ($q) use ($request) {
+                $q->where('slug', $request->category);
+            });
+        }
+
+        // ត្រងតាម Brand Slug
+        if ($request->has('brand')) {
+            $query->whereHas('brand', function ($q) use ($request) {
+                $q->where('slug', $request->brand);
+            });
+        }
+
+        // ត្រងតាម Recommended (ពេលចុចពី Home Page)
+        if ($request->has('filter') && $request->filter === 'recommended') {
+            $query->where('is_recommended', true);
+        }
+
+        // ត្រងតាមចន្លោះតម្លៃ (Price Range)
+        if ($request->has('min_price')) {
+            $query->where('final_price', '>=', $request->min_price);
+        }
+        if ($request->has('max_price')) {
+            $query->where('final_price', '<=', $request->max_price);
+        }
+
+        // ==========================================
+        // 🌟 ២. មុខងារតម្រៀប (Sorting Logic)
+        // ==========================================
+        $sort = $request->input('sort', 'default'); // បើគ្មានគេបញ្ជាទេ ប្រើ default
+
+        switch ($sort) {
+            case 'newest':
+                $query->orderBy('created_at', 'desc');
+                break;
+            case 'price_asc':
+                $query->orderBy('final_price', 'asc');
+                break;
+            case 'price_desc':
+                $query->orderBy('final_price', 'desc');
+                break;
+            case 'popular':
+                // បើមាន column view_count អាចប្រើវាបាន
+                $query->orderBy('created_at', 'desc');
+                break;
+            case 'default':
+            default:
+                // 🌟 Industry Standard Hybrid Sort: រុញ Recommended ឡើងលើគេ បន្ទាប់មកទើបយក Newest
+                $query->orderBy('is_recommended', 'desc')
+                    ->orderBy('created_at', 'desc');
+                break;
+        }
+
+        // ==========================================
+        // 🌟 ៣. បែងចែកទំព័រ (Pagination)
+        // ==========================================
+        // យក ១២ ទំនិញក្នុងមួយទំព័រ
+        return $query->paginate(12);
+    }
 }
