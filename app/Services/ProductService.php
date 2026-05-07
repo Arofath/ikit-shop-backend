@@ -77,11 +77,12 @@ class ProductService
         }
 
         // ត្រងតាមចន្លោះតម្លៃ (Price Range)
-        if ($request->has('min_price')) {
-            $query->where('final_price', '>=', $request->min_price);
+        if ($request->has('min_price') && is_numeric($request->min_price)) {
+            $query->whereRaw('(price - (price * (IFNULL(discount_percent, 0) / 100))) >= ?', [$request->min_price]);
         }
-        if ($request->has('max_price')) {
-            $query->where('final_price', '<=', $request->max_price);
+
+        if ($request->has('max_price') && is_numeric($request->max_price)) {
+            $query->whereRaw('(price - (price * (IFNULL(discount_percent, 0) / 100))) <= ?', [$request->max_price]);
         }
 
         // ==========================================
@@ -94,10 +95,10 @@ class ProductService
                 $query->orderBy('created_at', 'desc');
                 break;
             case 'price_asc':
-                $query->orderBy('final_price', 'asc');
+                $query->orderByRaw('(price - (price * (IFNULL(discount_percent, 0) / 100))) ASC');
                 break;
             case 'price_desc':
-                $query->orderBy('final_price', 'desc');
+                $query->orderByRaw('(price - (price * (IFNULL(discount_percent, 0) / 100))) DESC');
                 break;
             case 'popular':
                 // បើមាន column view_count អាចប្រើវាបាន
