@@ -30,9 +30,8 @@ Route::prefix('products')->group(function () {
     Route::get('/{product:slug}/images', [ProductImageController::class, 'index']);
 });
 
-Route::get('/categories', [CategoryController::class, 'index']);
-Route::get('/brands', [BrandController::class, 'index']);
-Route::get('/slideshows', [SlideshowController::class, 'index']);
+Route::get('/categories', [CategoryController::class, 'storefrontIndex']);
+Route::get('/brands', [BrandController::class, 'storefrontIndex']);
 // Public Route (អតិថិជនប្រើ)
 Route::get('check-warranty', [PublicWarrantyController::class, 'check']);
 

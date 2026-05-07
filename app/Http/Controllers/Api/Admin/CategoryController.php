@@ -58,6 +58,18 @@ class CategoryController extends Controller
         );
     }
 
+    public function storefrontIndex()
+    {
+        // ទាញយកតែ Category ណាដែល Active និងតម្រៀបតាមលេខរៀង
+        $categories = Category::where('is_active', true)
+            ->orderBy('sort_order', 'asc')
+            ->get(); // ប្រើ get() ដើម្បីទាញមកទាំងអស់ មិនបាច់ Paginate ទេ
+
+        return $this->sendResponse(
+            CategoryResource::collection($categories),
+            'Storefront categories fetched successfully.'
+        );
+    }
     // Show category detail
     public function show(string $id)
     {

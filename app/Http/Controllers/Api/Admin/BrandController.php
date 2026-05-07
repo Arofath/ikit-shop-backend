@@ -43,6 +43,19 @@ class BrandController extends Controller
         ], 200);
     }
 
+    public function storefrontIndex()
+    {
+        $brands = Brand::where('is_active', true)
+            ->orderBy('is_top', 'desc') // រុញ Top Brand ឡើងលើគេ
+            ->orderBy('name', 'asc')
+            ->get();
+
+        return $this->sendResponse(
+            BrandResource::collection($brands),
+            'Storefront brands fetched successfully.'
+        );
+    }
+
     // ២. បង្កើត Brand ថ្មី (គ្មានការ Upload រូបភាពទៀតទេ)
     public function store(Request $request)
     {
