@@ -56,16 +56,18 @@ class ProductService
         // ==========================================
 
         // ត្រងតាម Category Slug
-        if ($request->has('category')) {
-            $query->whereHas('categories', function ($q) use ($request) {
-                $q->where('slug', $request->category);
+        if ($request->has('category') && !empty($request->category)) {
+            $categories = explode(',', $request->category); // បំបែកអក្សរជា Array
+            $query->whereHas('categories', function ($q) use ($categories) {
+                $q->whereIn('categories.slug', $categories); // ប្រើ whereIn ជំនួស where
             });
         }
 
         // ត្រងតាម Brand Slug
-        if ($request->has('brand')) {
-            $query->whereHas('brand', function ($q) use ($request) {
-                $q->where('slug', $request->brand);
+        if ($request->has('brand') && !empty($request->brand)) {
+            $brands = explode(',', $request->brand);
+            $query->whereHas('brand', function ($q) use ($brands) {
+                $q->whereIn('brands.slug', $brands); // ប្រើ whereIn
             });
         }
 
