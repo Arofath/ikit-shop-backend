@@ -60,10 +60,14 @@ class CategoryController extends Controller
 
     public function storefrontIndex()
     {
-        // ទាញយកតែ Category ណាដែល Active និងតម្រៀបតាមលេខរៀង
-        $categories = Category::where('is_active', true)
+        $categories = Category::whereNull('parent_id')
+            ->where('is_active', true)
+            ->with(['children' => function ($query) {
+                // 🌟 បន្ថែមលក្ខខណ្ឌ៖ ទាញយកតែកូនណាដែល Active និងតម្រៀបលេខរៀងឱ្យស្អាត
+                $query->where('is_active', true)->orderBy('sort_order', 'asc');
+            }])
             ->orderBy('sort_order', 'asc')
-            ->get(); // ប្រើ get() ដើម្បីទាញមកទាំងអស់ មិនបាច់ Paginate ទេ
+            ->get();
 
         return $this->sendResponse(
             CategoryResource::collection($categories),
