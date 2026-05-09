@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\CartResource;
 use App\Models\Cart;
 use App\Models\CartItem;
 use Illuminate\Http\Request;
@@ -22,7 +23,7 @@ class CartController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Cart fetched successfully.',
-            'data'    => $cart
+            'data'    => new CartResource($cart)
         ], 200);
     }
 
@@ -59,7 +60,7 @@ class CartController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Product added to cart successfully.',
-            'data'    => $cart
+            'data'    => new CartResource($cart)
         ], 200);
     }
 
@@ -92,7 +93,7 @@ class CartController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Cart item updated successfully.',
-            'data'    => $cart
+            'data'    => new CartResource($cart)
         ], 200);
     }
 
@@ -119,7 +120,7 @@ class CartController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Product removed from cart successfully.',
-            'data'    => $cart
+            'data'    => new CartResource($cart)
         ], 200);
     }
 
@@ -135,7 +136,7 @@ class CartController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Cart cleared successfully.',
-            'data'    => $cart ? $cart->load('items') : []
+            'data'    => $cart ? new CartResource($cart) : []
         ], 200);
     }
 }
