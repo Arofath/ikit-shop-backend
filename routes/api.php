@@ -5,11 +5,13 @@ use App\Http\Controllers\Api\Admin\{UserManagementController, CategoryController
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\Admin\SystemController;
+use App\Http\Controllers\Api\Auth\GoogleAuthController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\OrderController as ShopOrderController;
 use App\Http\Controllers\Api\PublicWarrantyController;
 use App\Http\Controllers\Api\UserProfileController;
+use App\Http\Controllers\CartController;
 use Illuminate\Support\Facades\Route;
 
 // =============================================================
@@ -21,6 +23,11 @@ Route::middleware('throttle:10,1')->group(function () {
     Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
     Route::post('/resend-otp', [AuthController::class, 'resendOtp']);
     Route::post('/verify-admin-login', [AuthController::class, 'verifyAdminLogin']);
+});
+
+Route::prefix('auth/google')->group(function () {
+    Route::get('/redirect', [GoogleAuthController::class, 'redirect']);
+    Route::get('/callback', [GoogleAuthController::class, 'callback']);
 });
 
 Route::prefix('products')->group(function () {
@@ -37,6 +44,15 @@ Route::get('check-warranty', [PublicWarrantyController::class, 'check']);
 
 // Home Page Data (Recommended + New Arrivals)
 Route::get('/home', [HomeController::class, 'index']);
+
+// Cart Routes
+Route::prefix('cart')->group(function () {
+    Route::get('/', [CartController::class, 'index']);
+    Route::post('/add', [CartController::class, 'addItem']);
+    Route::put('/item/{itemId}', [CartController::class, 'updateItem']);
+    Route::delete('/item/{itemId}', [CartController::class, 'removeItem']);
+    Route::delete('/clear', [CartController::class, 'clearCart']);
+});
 
 // =============================================================
 // 2. PROTECTED ROUTES (Logged-in Users)

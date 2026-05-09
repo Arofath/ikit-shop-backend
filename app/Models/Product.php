@@ -113,6 +113,12 @@ class Product extends Model
         return $this->hasOne(ProductImage::class)->where('is_thumbnail', true);
     }
 
+    // ទំនាក់ទំនង៖ Product មួយអាចស្ថិតនៅក្នុង Cart ជាច្រើន (One-to-Many)
+    public function cartItems()
+    {
+        return $this->hasMany(CartItem::class);
+    }
+
     // --- Scopes ---
     public function scopeSearch($query, $keyword)
     {

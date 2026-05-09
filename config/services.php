@@ -43,4 +43,9 @@ return [
         'bucket_product' => env('SUPABASE_PRODUCT_BUCKET'),
         'bucket_slideshow' => env('SUPABASE_SLIDESHOW_BUCKET'),
     ],
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+    ],
 ];
