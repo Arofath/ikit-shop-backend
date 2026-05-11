@@ -81,6 +81,33 @@ class ProductController extends Controller
         );
     }
 
+    // 🌟 មុខងារថ្មីសម្រាប់ Live Search Dropdown
+    public function suggestions(Request $request)
+    {
+        $searchTerm = $request->search;
+
+        if (!$searchTerm) {
+            return response()->json(['data' => []]);
+        }
+
+        $products = Product::where('is_active', true)
+            ->where(function ($q) use ($searchTerm) {
+                $q->where('name', 'LIKE', '%' . $searchTerm . '%')
+                    ->orWhere('sku', 'LIKE', '%' . $searchTerm . '%')
+                    ->orWhereHas('brand', function ($brandQuery) use ($searchTerm) {
+                        $brandQuery->where('name', 'LIKE', '%' . $searchTerm . '%');
+                    });
+            })
+            ->with('thumbnail') // យកតែរូបភាពមកបានហើយ
+            ->limit(5) // បង្ហាញត្រឹម ៥ ទំនិញបានហើយ កុំឱ្យធ្លាក់វែងពេក
+            ->get();
+
+        // ប្រើ Resource ដើម្បីឱ្យទម្រង់ទិន្នន័យដូចគ្នានឹងអ្វីដែល Frontend ធ្លាប់ស្គាល់
+        return response()->json([
+            'data' => StorefrontProductResource::collection($products)
+        ]);
+    }
+
     // API សម្រាប់ Storefront (បង្ហាញលើ Website)
     public function showBySlug(string $slug)
     {

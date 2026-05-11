@@ -37,6 +37,7 @@ Route::prefix('products')->group(function () {
     Route::get('/{slug}', [ProductController::class, 'showBySlug']);
     Route::get('/{product:slug}/images', [ProductImageController::class, 'index']);
 });
+Route::get('/products/suggestions', [ProductController::class, 'suggestions']);
 
 Route::get('/categories', [CategoryController::class, 'storefrontIndex']);
 Route::get('/brands', [BrandController::class, 'storefrontIndex']);
@@ -45,7 +46,6 @@ Route::get('check-warranty', [PublicWarrantyController::class, 'check']);
 
 // Home Page Data (Recommended + New Arrivals)
 Route::get('/home', [HomeController::class, 'index']);
-
 
 // =============================================================
 // 2. PROTECTED ROUTES (Logged-in Users)
