@@ -87,4 +87,15 @@ class User extends Authenticatable
     {
         return $this->hasMany(Favorite::class);
     }
+
+    public function addresses()
+    {
+        return $this->hasMany(Address::class);
+    }
+
+    // User អាចមានវិក្កយបត្រ (Order) ច្រើន
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
 }

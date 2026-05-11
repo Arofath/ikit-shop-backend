@@ -1,0 +1,18 @@
+public function up(): void
+    {
+        Schema::create('addresses', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            
+            // ប្រើ Syntax ថ្មី
+            $table->foreignUuid('user_id')->constrained('users')->cascadeOnDelete();
+            
+            $table->string('receiver_name');
+            $table->string('receiver_phone');
+            $table->text('address_detail'); // ភូមិ សង្កាត់ ឬចំណុចសម្គាល់
+            $table->string('city'); // ភ្នំពេញ ឬខេត្តផ្សេងៗ
+            $table->string('postal_code')->nullable(); // remove
+            $table->boolean('is_default')->default(false); 
+            
+            $table->timestamps();
+        });
+    }

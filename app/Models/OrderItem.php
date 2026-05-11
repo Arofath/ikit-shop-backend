@@ -13,28 +13,20 @@ class OrderItem extends Model
     protected $fillable = [
         'order_id',
         'product_id',
-        'product_name', // Field ថ្មី
-        'product_sku',  // Field ថ្មី
+        'product_name',
+        'product_sku',
         'quantity',
         'unit_price',
-        'subtotal',     // ផ្អែកតាម Migration ចាស់របស់អ្នកគឺ quantity * unit_price
+        'subtotal',
     ];
 
-    // ==========================================
-    // 🌟 ការកំណត់ Relationships
-    // ==========================================
-
-    /**
-     * Item នេះស្ថិតនៅក្នុង Order ណាមួយ
-     */
+    // OrderItem នេះស្ថិតនៅក្នុង Order មួយណា?
     public function order()
     {
         return $this->belongsTo(Order::class);
     }
 
-    /**
-     * Item នេះសំដៅទៅលើ Product មួយ
-     */
+    // OrderItem នេះតំណាងឱ្យ Product មួយណា?
     public function product()
     {
         return $this->belongsTo(Product::class);

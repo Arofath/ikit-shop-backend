@@ -14,16 +14,15 @@ return new class extends Migration
         Schema::create('order_items', function (Blueprint $table) {
             $table->uuid('id')->primary();
 
-            // កែប្រែមកប្រើ Syntax ថ្មី
             $table->foreignUuid('order_id')->constrained('orders')->cascadeOnDelete();
             $table->foreignUuid('product_id')->constrained('products');
 
-            // បញ្ចូល Field ថ្មី (Snapshot ទិន្នន័យផលិតផល)
+            // 🌟 ថតចម្លង (Snapshot) ទិន្នន័យផលិតផល
             $table->string('product_name')->nullable();
             $table->string('product_sku')->nullable();
 
             $table->integer('quantity');
-            $table->decimal('unit_price', 12, 2); // រក្សាតម្លៃលក់នៅពេលបញ្ជាទិញ
+            $table->decimal('unit_price', 12, 2); // តម្លៃលក់នៅពេលគាត់បញ្ជាទិញ
             $table->decimal('subtotal', 12, 2); // quantity * unit_price
 
             $table->timestamps();

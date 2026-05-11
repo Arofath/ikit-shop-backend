@@ -3,13 +3,13 @@
 use App\Http\Controllers\AIGeneratorController;
 use App\Http\Controllers\Api\Admin\{UserManagementController, CategoryController, BrandController, ProductController, ProductImageController, ProductSpecController, ProductStockMovementController, SlideshowController, SupplierController, WarrantyController, ProductSerialController, SettingController};
 use App\Http\Controllers\Api\Admin\DashboardController;
-use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
+// use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\Admin\SystemController;
 use App\Http\Controllers\Api\Auth\GoogleAuthController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\HomeController;
-use App\Http\Controllers\Api\OrderController as ShopOrderController;
+use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PublicWarrantyController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\CartController;
@@ -73,6 +73,13 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
     Route::prefix('favorites')->group(function () {
         Route::get('/', [FavoriteController::class, 'index']);
         Route::post('/toggle', [FavoriteController::class, 'toggle']);
+    });
+
+    // Order & Checkout Routes (តម្រូវឱ្យ Login)
+    Route::prefix('orders')->group(function () {
+        Route::get('/', [OrderController::class, 'index']); // មើលប្រវត្តិទិញ
+        Route::post('/checkout', [OrderController::class, 'store']); // បញ្ជាទិញ
+        Route::get('/{id}', [OrderController::class, 'show']); // មើលវិក្កយបត្រលម្អិត
     });
 
     // =============================================================
@@ -189,29 +196,17 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::post('/', [SettingController::class, 'update']);
         });
 
-        Route::prefix('orders')->group(function () {
-            // មើលបញ្ជី Order
-            Route::get('/', [AdminOrderController::class, 'index']);
+        // Route::prefix('orders')->group(function () {
+        //     // មើលបញ្ជី Order
+        //     Route::get('/', [AdminOrderController::class, 'index']);
 
-            // មើល Order លម្អិត
-            Route::get('/orders/{id}', [AdminOrderController::class, 'show']);
+        //     // មើល Order លម្អិត
+        //     Route::get('/orders/{id}', [AdminOrderController::class, 'show']);
 
-            // កែប្រែស្ថានភាព (ប៊ូតុង Mark as Shipped)
-            Route::patch('/orders/{id}/status', [AdminOrderController::class, 'updateStatus']);
-        });
+        //     // កែប្រែស្ថានភាព (ប៊ូតុង Mark as Shipped)
+        //     Route::patch('/orders/{id}/status', [AdminOrderController::class, 'updateStatus']);
+        // });
 
         Route::post('/system/clear-cache', [SystemController::class, 'clearCache']);
-    });
-
-    Route::prefix('shop')->group(function () {
-        // ១. ភ្ញៀវបញ្ជាទិញ (Checkout)
-        // Endpoint: POST /api/shop/orders
-        Route::post('/orders', [ShopOrderController::class, 'store']);
-        // ២. ភ្ញៀវមើលប្រវត្តិទិញរបស់ខ្លួនឯង (My Orders)
-        // Endpoint: GET /api/shop/orders
-        Route::get('/orders', [ShopOrderController::class, 'index']);
-        // ៣. ភ្ញៀវមើលវិក្កយបត្រលម្អិតរបស់ខ្លួនឯង
-        // Endpoint: GET /api/shop/orders/{id}
-        Route::get('/orders/{id}', [ShopOrderController::class, 'show']);
     });
 });

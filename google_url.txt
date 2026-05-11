@@ -1,0 +1,31 @@
+១. ការរៀបចំលើ Local (កុំព្យូទ័ររបស់អ្នក)
+# ទីតាំងដែល Google ត្រូវបាញ់ទិន្នន័យមក (Backend)
+GOOGLE_REDIRECT_URI=http://localhost:8000/api/auth/google/callback
+
+# ទីតាំងដែល Laravel ត្រូវបាញ់ Token បន្តទៅឱ្យអតិថិជន (Frontend)
+FRONTEND_URL=http://localhost:5174
+
+
+២. ការរៀបចំលើ Hosting
+# ទីតាំង Backend ពិតប្រាកដនៅលើ Hosting
+GOOGLE_REDIRECT_URI=https://api.ikit-shop.com/api/auth/google/callback
+
+# ទីតាំង Frontend ពិតប្រាកដនៅលើ Vercel
+FRONTEND_URL=https://ikit-shop.vercel.app
+
+
+១. ហេតុអ្វី /redirect ប្រើ GET?
+គោលបំណងពិតប្រាកដ៖ មុខងារនេះគ្រាន់តែមានតួនាទី ទាញយក (Get) នូវ URL មួយខ្សែរបស់ Google (ដើម្បីឱ្យ Vue យក URL នោះទៅបើកផ្ទាំង Login)។ វាមិនមានការបញ្ជូនទិន្នន័យសម្ងាត់ (ដូចជា Password) ពី Frontend ទៅ Backend ទេ ហើយក៏មិនមានការកែប្រែ ឬបញ្ចូលទិន្នន័យអ្វីទៅក្នុង Database ដែរ។
+
+ស្តង់ដារ HTTP: រាល់ការស្នើសុំទិន្នន័យដែលមិនធ្វើឱ្យមានការផ្លាស់ប្តូរនៅក្នុង Server (Read-only) គឺត្រូវតែប្រើ GET ជានិច្ច។
+
+២. ហេតុអ្វី /callback ប្រើ GET? (ចំណុចសំខាន់បំផុត ⚠️)
+ចំណុចនេះគឺយើង គ្មានជម្រើស ក្នុងការប្តូរទៅប្រើ POST នោះទេ ដោយសារតែច្បាប់របស់ Google និង Browser។
+
+របៀបដែល Google បោះទិន្នន័យមកវិញ៖ បន្ទាប់ពីអតិថិជនវាយ Email និង Password ត្រូវហើយ ម៉ាស៊ីន Server របស់ Google នឹងប្រើប្រាស់បច្ចេកទេសមួយហៅថា "URL Redirect (HTTP 302)" ដើម្បីបញ្ជូនអតិថិជនត្រឡប់មកវេបសាយយើងវិញ។
+
+ធម្មជាតិនៃ Browser: នៅពេលដែល Browser (ដូចជា Chrome) ទទួលបញ្ជា Redirect, វា តែងតែធ្វើការស្នើសុំជាទម្រង់ GET ជានិច្ច ទៅកាន់ URL គោលដៅ។
+
+ការបញ្ជូនទិន្នន័យតាម URL (Query Parameters): Google មិនបានវេចខ្ចប់ទិន្នន័យដាក់ក្នុង Body ដូចការធ្វើ POST Form នោះទេ តែវាភ្ជាប់លេខកូដសម្ងាត់មកជាមួយកន្ទុយ URL តែម្តង។ ឧទាហរណ៍៖ http://localhost:8000/api/auth/google/callback?code=4/0AeanS...។
+
+ចុះបើប្តូរវាទៅជា POST វិញ? ប្រសិនបើអ្នកសរសេរកូដ Route::post('/callback', ...) នោះនៅពេល Google បញ្ជូនអតិថិជនមកវិញ ប្រព័ន្ធ Laravel របស់អ្នកនឹងបដិសេធភ្លាមៗ រួចលោត Error ពណ៌ក្រហម "405 Method Not Allowed" ព្រោះ Laravel កំពុងរង់ចាំ POST ប៉ុន្តែ Google និង Browser បាញ់មកជា GET។

@@ -1,0 +1,84 @@
+🛍️ ១. ដំណាក់កាលនៃការបញ្ជាទិញ (User Flow - Frontend)
+ជាទូទៅនៅពេលអតិថិជនចុចប៊ូតុង "Proceed to Checkout" ពីទំព័រ Cart ពួកគេត្រូវឆ្លងកាត់ដំណាក់កាលដូចខាងក្រោម (យើងអាចបង្រួមវាដាក់ក្នុង ១ ទំព័រ ដើម្បីឱ្យលឿន)៖
+
+ព័ត៌មានដឹកជញ្ជូន (Shipping Information):
+
+ឈ្មោះអ្នកទទួល (អាចយកឈ្មោះ User ផ្ទាល់ ឬវាយបញ្ចូលថ្មី)
+
+លេខទូរស័ព្ទ (ចាំបាច់បំផុត)
+
+ខេត្ត/ក្រុង និង ស្រុក/ខណ្ឌ
+
+អាសយដ្ឋានលម្អិត (លេខផ្ទះ ផ្លូវ ឬចំណុចចំណាំ)
+
+ជម្រើសដឹកជញ្ជូន (Delivery Options):
+
+ឧទាហរណ៍៖ ដឹកជញ្ជូនឥតគិតថ្លៃ (ភ្នំពេញ) ឬ ដឹកជញ្ជូនតាមខេត្ត ($2 - $3)។
+
+ជម្រើសបង់ប្រាក់ (Payment Methods):
+
+បង់ប្រាក់ពេលទទួលទំនិញ (Cash on Delivery - COD)
+
+បង់ប្រាក់តាមធនាគារ (Bank Transfer / ABA Pay) - អាចតម្រូវឱ្យ Upload វិក្កយបត្រ (Receipt) ឬភ្ជាប់ API ផ្ទាល់។
+
+សេចក្តីសង្ខេប (Order Summary):
+
+បង្ហាញទំនិញដែលបានទិញ, តម្លៃសរុប (Subtotal), ថ្លៃដឹក (Delivery Fee) និងតម្លៃត្រូវបង់ចុងក្រោយ (Grand Total)។
+
+ប៊ូតុង "Place Order" (បញ្ជាក់ការបញ្ជាទិញ)។
+
+🛡️ ២. លក្ខខណ្ឌ និងការទប់ស្កាត់ (Conditions & Validations)
+ដើម្បីកុំឱ្យមានបញ្ហានៅខាង Backend យើងត្រូវដាក់លក្ខខណ្ឌតឹងរ៉ឹង៖
+
+លក្ខខណ្ឌមុនចូល Checkout:
+
+អតិថិជនត្រូវតែ Login រួចរាល់។
+
+កន្ត្រកទំនិញ (Cart) មិនអាចទទេបានទេ។ បើទទេ ត្រូវបោះគាត់ទៅទំព័រ Products វិញ។
+
+លក្ខខណ្ឌពេលកំពុង Checkout:
+
+រាល់ Field ព័ត៌មាន (ឈ្មោះ, ទូរស័ព្ទ, អាសយដ្ឋាន) មិនអាចទុកចោលបានទេ (Required)។
+
+លក្ខខណ្ឌពេលចុច Place Order (សំខាន់បំផុតខាង Backend):
+
+Double Check Stock: មុននឹង Save Order ចូល Database, Backend ត្រូវឆែកមើលស្តុកទំនិញនីមួយៗឡើងវិញ! ក្រែងលោក្នុងចន្លោះពេលដែលគាត់កំពុងវាយអាសយដ្ឋាន មានអតិថិជនផ្សេងទិញទំនិញនោះអស់ពីស្តុកបាត់។
+
+បើទំនិញនៅមានស្តុក -> កាត់ស្តុក -> បង្កើត Order -> លុបទំនិញពី Cart -> លោតទៅទំព័រជោគជ័យ (Thank You Page)។
+
+🗄️ ៣. ការរៀបចំ Database (Backend Architecture Plan)
+ដើម្បីផ្ទុកទិន្នន័យបញ្ជាទិញ យើងត្រូវការ Table យ៉ាងតិច ២ ថ្មី៖
+
+Table orders (សម្រាប់ទុកវិក្កយបត្រមេ):
+
+id (UUID ឬ Order Number ឧ. ORD-20240510-001)
+
+user_id (អ្នកណាជាអ្នកទិញ)
+
+status (ឧ. pending, processing, shipped, delivered, cancelled)
+
+payment_method (cod, bank_transfer)
+
+payment_status (unpaid, paid)
+
+shipping_address (ផ្ទុកជា JSON ឬ Text នូវអាសយដ្ឋានពេលគាត់ទិញ)
+
+subtotal, delivery_fee, discount, grand_total
+
+notes (ចំណាំពីអតិថិជន)
+
+Table order_items (សម្រាប់ទុកទំនិញក្នុងវិក្កយបត្រ):
+
+id
+
+order_id (ភ្ជាប់ទៅកាន់ Table orders)
+
+product_id
+
+product_name (គួរតែ Save ឈ្មោះទុក ក្រែងលោថ្ងៃក្រោយ Product នេះដូរឈ្មោះ)
+
+price (តម្លៃនៅពេលទិញ)
+
+quantity
+
+total (price * quantity)

@@ -3,133 +3,168 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\OrderResource;
+use App\Models\Cart;
 use App\Models\Order;
-use App\Models\OrderItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
     /**
-     * 🌟 ១. ទាញយកប្រវត្តិការបញ្ជាទិញរបស់អតិថិជន (My Orders)
-     */
-    public function index(Request $request)
-    {
-        // ប្រើ $request->user()->id ដើម្បីទាញយកតែ Order របស់ User ដែលកំពុង Login ប៉ុណ្ណោះ
-        $orders = Order::with(['items'])
-            ->where('user_id', $request->user()->id)
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
-
-        return response()->json([
-            'success' => true,
-            'data' => $orders
-        ]);
-    }
-
-    /**
-     * 🌟 ២. មើលលម្អិត Order ណាមួយរបស់ខ្លួនឯង (Order Detail)
-     */
-    public function show(Request $request, $id)
-    {
-        // ត្រូវប្រាកដថា Order នោះជារបស់ User នេះមែន
-        $order = Order::with(['items'])
-            ->where('user_id', $request->user()->id)
-            ->find($id);
-
-        if (!$order) {
-            return response()->json(['success' => false, 'message' => 'Order not found or unauthorized'], 404);
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => $order
-        ]);
-    }
-
-    /**
-     * 🌟 ៣. អតិថិជនធ្វើការបញ្ជាទិញ (Checkout Process)
+     * មុខងារបញ្ជាទិញ (Checkout)
      */
     public function store(Request $request)
     {
-        // ១. Validation ទិន្នន័យ (យើងមិនចាំបាច់សុំ user_id ទេ ព្រោះយើងយកតាម Token របស់គាត់)
+        // ១. ត្រួតពិនិត្យទិន្នន័យដែល Frontend បោះមក
         $request->validate([
-            'address_id' => 'nullable|uuid',
-            'subtotal' => 'required|numeric|min:0',
-            'shipping_fee' => 'required|numeric|min:0',
-            'tax_amount' => 'required|numeric|min:0',
-            'discount_total' => 'required|numeric|min:0',
-            'grand_total' => 'required|numeric|min:0',
-            'payment_method' => 'required|string',
-            'note' => 'nullable|string',
-
-            // Validation សម្រាប់ Items ខាងក្នុង (Array)
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.product_name' => 'required|string',
-            'items.*.product_sku' => 'nullable|string',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unit_price' => 'required|numeric|min:0',
+            'shipping_name'    => 'required|string|max:255',
+            'shipping_phone'   => 'required|string|max:20',
+            'shipping_address' => 'required|string',
+            'payment_method'   => 'required|in:CASH_ON_DELIVERY,BANK_TRANSFER',
         ]);
 
+        $user = $request->user();
+
+        // ២. ទាញយកកន្ត្រកទំនិញរបស់គាត់ពី Database
+        $cart = Cart::with('items.product')->where('user_id', $user->id)->first();
+
+        if (!$cart || $cart->items->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Your cart is empty.'
+            ], 400);
+        }
+
+        // 🌟 ចាប់ផ្តើម Transaction (បើមាន Error ត្រង់ណា វាលុបចោលវិញទាំងអស់)
+        DB::beginTransaction();
+
         try {
-            DB::beginTransaction();
+            $subtotal = 0;
+            $orderItemsData = [];
 
-            // បង្កើតលេខ Order ស្វ័យប្រវត្តិ
-            $orderNumber = 'ORD-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
+            // ៣. ឆែកស្តុក និងគណនាលុយ (Loop តាមទំនិញក្នុងកន្ត្រក)
+            foreach ($cart->items as $cartItem) {
+                $product = $cartItem->product;
 
-            // ២. បង្កើត Order មេ ដោយប្រើ ID របស់ User ដែលកំពុង Login
-            $order = Order::create([
-                'order_number' => $orderNumber,
-                'user_id' => $request->user()->id, // 🌟 យក ID ពី Token សុវត្ថិភាពខ្ពស់
-                'address_id' => $request->address_id,
-                'subtotal' => $request->subtotal,
-                'discount_total' => $request->discount_total,
-                'shipping_fee' => $request->shipping_fee,
-                'tax_amount' => $request->tax_amount,
-                'grand_total' => $request->grand_total,
-                'status' => 'PENDING',
-                'payment_status' => 'UNPAID',
-                'payment_method' => $request->payment_method,
-                'note' => $request->note,
-            ]);
+                // ឆែកមើលក្រែងលោមានគេទិញអស់មុន
+                if ($product->current_stock < $cartItem->quantity) {
+                    throw new \Exception("Product '{$product->name}' is out of stock or insufficient quantity.");
+                }
 
-            // ៣. បញ្ចូលទំនិញទៅក្នុង Order Items
-            $orderItems = [];
-            foreach ($request->items as $item) {
-                $orderItems[] = [
-                    'id' => (string) \Illuminate\Support\Str::uuid(),
-                    'order_id' => $order->id,
-                    'product_id' => $item['product_id'],
-                    'product_name' => $item['product_name'],
-                    'product_sku' => $item['product_sku'] ?? null,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'subtotal' => $item['quantity'] * $item['unit_price'],
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                // គណនាតម្លៃ (យក Final Price ក្រោយបញ្ចុះតម្លៃ)
+                $unitPrice = $product->price - ($product->price * ($product->discount_percent / 100));
+                $itemSubtotal = $unitPrice * $cartItem->quantity;
+
+                $subtotal += $itemSubtotal;
+
+                // រៀបចំទិន្នន័យសម្រាប់ Save ចូល OrderItem
+                $orderItemsData[] = [
+                    'product_id'   => $product->id,
+                    'product_name' => $product->name,
+                    'product_sku'  => $product->sku,
+                    'quantity'     => $cartItem->quantity,
+                    'unit_price'   => $unitPrice,
+                    'subtotal'     => $itemSubtotal,
                 ];
+
+                // 🌟 កាត់ស្តុកទំនិញចេញពីឃ្លាំង
+                $product->decrement('current_stock', $cartItem->quantity);
             }
 
-            OrderItem::insert($orderItems);
+            // ៤. គណនាតម្លៃចុងក្រោយ
+            $shippingFee = 0; // អាចកំណត់ថ្លៃដឹកជញ្ជូននៅទីនេះ (ឧទាហរណ៍៖ 2.00)
+            $grandTotal = $subtotal + $shippingFee;
 
+            // ៥. បង្កើតវិក្កយបត្រមេ (Order)
+            $order = Order::create([
+                'order_number'     => 'ORD-' . date('Ymd') . '-' . strtoupper(Str::random(5)),
+                'user_id'          => $user->id,
+                'shipping_name'    => $request->shipping_name,
+                'shipping_phone'   => $request->shipping_phone,
+                'shipping_address' => $request->shipping_address,
+                'subtotal'         => $subtotal,
+                'shipping_fee'     => $shippingFee,
+                'grand_total'      => $grandTotal,
+                'status'           => 'PENDING',
+                'payment_status'   => 'UNPAID',
+                'payment_method'   => $request->payment_method,
+            ]);
+
+            // ៦. បង្កើតទំនិញក្នុងវិក្កយបត្រ (Order Items)
+            foreach ($orderItemsData as $itemData) {
+                $order->items()->create($itemData);
+            }
+
+            // ៧. បង្កើតប្រតិបត្តិការបង់ប្រាក់ (Payment)
+            $order->payment()->create([
+                'amount'         => $grandTotal,
+                'payment_method' => $request->payment_method,
+                'status'         => 'PENDING',
+            ]);
+
+            // ៨. សម្អាតកន្ត្រកទំនិញ (លុបចោលព្រោះទិញរួចហើយ)
+            $cart->items()->delete();
+
+            // 🌟 បញ្ចប់ Transaction ដោយជោគជ័យ
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Order placed successfully',
-                'order_id' => $order->id,
+                'message' => 'Order placed successfully.',
+                'order_id' => $order->id, // បោះ ID អោយ Frontend ដើម្បីលោតទៅ Thank You Page
                 'order_number' => $order->order_number
             ], 201);
         } catch (\Exception $e) {
+            // 🚨 បើមានបញ្ហា (ឧ. អស់ស្តុក) លុបចោលប្រតិបត្តិការទាំងអស់ខាងលើ
             DB::rollBack();
-            Log::error('E-commerce Order Failed: ' . $e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to complete checkout. Please try again later.'
-            ], 500);
+                'message' => 'Checkout failed: ' . $e->getMessage()
+            ], 400);
         }
+    }
+
+    public function index(Request $request)
+    {
+        // ទាញយកតែ Order ណាដែលជារបស់ User ដែលកំពុង Login ប៉ុណ្ណោះ
+        $orders = Order::where('user_id', $request->user()->id)
+            ->with(['items.product.thumbnail', 'payment']) // ទាញយកទំនិញ រូបភាព និងការបង់ប្រាក់
+            ->latest() // យកវិក្កយបត្រថ្មីៗមកបង្ហាញមុនគេ
+            ->paginate(10); // បែងចែក ១០ វិក្កយបត្រក្នុង ១ ទំព័រ
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order history fetched successfully.',
+            'data'    => OrderResource::collection($orders)->response()->getData(true)
+        ], 200);
+    }
+
+    /**
+     * មុខងារមើលព័ត៌មានលម្អិតនៃវិក្កយបត្រណាមួយ (Order Detail)
+     */
+    public function show(Request $request, string $id)
+    {
+        // 🌟 សុវត្ថិភាព៖ ស្វែងរក Order តាម ID និងត្រូវតែជារបស់ User នេះផ្ទាល់
+        $order = Order::with(['items.product.thumbnail', 'payment'])
+            ->where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->first();
+
+        // បើរកមិនឃើញ ឬមិនមែនជារបស់គាត់
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found or unauthorized.'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order details fetched successfully.',
+            'data'    => new OrderResource($order)
+        ], 200);
     }
 }
