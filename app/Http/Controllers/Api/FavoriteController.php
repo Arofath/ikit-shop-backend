@@ -16,7 +16,6 @@ class FavoriteController extends Controller
         $favorites = Favorite::where('user_id', $request->user()->id)
             ->with([
                 'product.thumbnail',
-                'product.images'
             ])
             ->latest() // តម្រៀបថ្មីៗនៅខាងលើ
             ->get();
@@ -50,19 +49,23 @@ class FavoriteController extends Controller
             return response()->json([
                 'success'     => true,
                 'message'     => 'Product removed from favorites.',
-                'is_favorite' => false // ប្រាប់ Frontend ឱ្យដោះពណ៌ក្រហមពីបេះដូងវិញ
+                'is_favorite' => false
             ], 200);
         } else {
             // បើមិនទាន់មាន -> បន្ថែមចូល (Add to Favorite)
-            Favorite::create([
+            $newFavorite = Favorite::create([
                 'user_id'    => $userId,
                 'product_id' => $productId,
             ]);
 
+            // 🌟 ទាញយកទិន្នន័យ Product និងរូបភាព (ដូចនៅក្នុង index ដែរ)
+            $newFavorite->load(['product.thumbnail']);
+
             return response()->json([
                 'success'     => true,
                 'message'     => 'Product added to favorites.',
-                'is_favorite' => true // ប្រាប់ Frontend ឱ្យលាបពណ៌ក្រហមលើបេះដូង
+                'is_favorite' => true,
+                'data'        => new FavoriteResource($newFavorite) // 🌟 បោះទិន្នន័យពេញលេញទៅឱ្យ Frontend វិញ
             ], 200);
         }
     }
