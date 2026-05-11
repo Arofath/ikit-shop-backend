@@ -18,7 +18,7 @@ class CartItemResource extends JsonResource
             'product' => new StorefrontProductResource($this->whenLoaded('product')),
 
             // គណនាតម្លៃសរុបប្រចាំ Item (Quantity * Price)
-            'item_total_price' => $this->relationLoaded('product') ? $this->quantity * $this->product->price : 0,
+            'item_total_price' => $this->relationLoaded('product') ? $this->quantity * $this->product->final_price : 0,
 
             'created_at' => $this->created_at->toDateTimeString(),
             'updated_at' => $this->updated_at->toDateTimeString(),

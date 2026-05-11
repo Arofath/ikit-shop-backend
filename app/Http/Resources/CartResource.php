@@ -15,7 +15,7 @@ class CartResource extends JsonResource
             foreach ($this->items as $item) {
                 if ($item->relationLoaded('product')) {
                     // បញ្ជាក់៖ សូមប្តូរ 'price' ទៅតាមឈ្មោះ Field ពិតនៅក្នុង table products របស់អ្នក
-                    $totalCartPrice += ($item->quantity * $item->product->price);
+                    $totalCartPrice += ($item->quantity * $item->product->final_price);
                 }
             }
         }

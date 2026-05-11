@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Resources\CartResource;
 use App\Models\Cart;
 use App\Models\CartItem;
+use App\Models\Product;
 use Illuminate\Http\Request;
 
 class CartController extends Controller
@@ -18,7 +19,10 @@ class CartController extends Controller
         );
 
         // ទាញយក Items ទាំងអស់ព្រមទាំងទិន្នន័យ Product (Eager Loading ដើម្បីឱ្យដើរលឿន)
-        $cart->load('items.product');
+        $cart->load([
+            'items.product.thumbnail', // 🌟 ទាញយករូបភាពតំណាង
+            // 'items.product.images',
+        ]);
 
         return response()->json([
             'success' => true,
@@ -35,32 +39,50 @@ class CartController extends Controller
             'quantity'   => 'required|integer|min:1'
         ]);
 
-        // រក ឬ បង្កើត Cart របស់ User
+        // 🌟 ១. ទាញយក Product ដើម្បីឆែកស្តុកសិន
+        $product = Product::findOrFail($request->product_id);
+
+        // 🌟 ២. ឆែកមើលថាតើការ Add លើកដំបូងនេះ លើសស្តុកឬអត់?
+        if ($product->current_stock < $request->quantity) {
+            return response()->json([
+                'success' => false,
+                'message' => "Sorry, only {$product->current_stock} items are available in stock."
+            ], 400);
+        }
+
         $cart = Cart::firstOrCreate(
             ['user_id' => $request->user()->id]
         );
 
-        // ឆែកមើលថាតើទំនិញនេះមានក្នុងកន្ត្រកស្រាប់ហើយឬនៅ?
         $cartItem = $cart->items()->where('product_id', $request->product_id)->first();
 
         if ($cartItem) {
-            // បើមានហើយ គ្រាន់តែបូកចំនួន (Quantity) បន្ថែម
+            // 🌟 ៣. បើមានក្នុងកន្ត្រកស្រាប់ ត្រូវបូកចំនួនចាស់ និងថ្មីចូលគ្នា រួចឆែកស្តុកម្តងទៀត
+            $newQuantity = $cartItem->quantity + $request->quantity;
+
+            if ($product->current_stock < $newQuantity) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Cannot add more. You already have {$cartItem->quantity} in your cart, and only {$product->current_stock} are available in total."
+                ], 400);
+            }
+
             $cartItem->increment('quantity', $request->quantity);
         } else {
-            // បើមិនទាន់មាន បង្កើត Item ថ្មី
             $cart->items()->create([
                 'product_id' => $request->product_id,
                 'quantity'   => $request->quantity
             ]);
         }
 
-        // Load ទិន្នន័យមកវិញដើម្បីបញ្ជូនទៅ Frontend
-        $cart->load('items.product');
-
+        // 🌟 កែប្រែត្រង់នេះ៖ បន្ថែម thumbnail និង images
         return response()->json([
             'success' => true,
             'message' => 'Product added to cart successfully.',
-            'data'    => new CartResource($cart)
+            'data'    => new CartResource($cart->load([
+                'items.product.thumbnail',
+                'items.product.images'
+            ]))
         ], 200);
     }
 
@@ -71,7 +93,7 @@ class CartController extends Controller
             'quantity' => 'required|integer|min:1'
         ]);
 
-        $cartItem = CartItem::where('id', $itemId)
+        $cartItem = CartItem::with('product')->where('id', $itemId)
             ->whereHas('cart', function ($query) use ($request) {
                 $query->where('user_id', $request->user()->id);
             })->first();
@@ -83,20 +105,30 @@ class CartController extends Controller
             ], 404);
         }
 
-        // កែប្រែចំនួនថ្មី
+        // 🌟 ៤. ឆែកមើលថាតើចំនួនដែលគាត់ Update ថ្មី (ឧ. ចុច + ឡើងដល់ ៥) លើសស្តុកឬអត់?
+        if ($cartItem->product->current_stock < $request->quantity) {
+            return response()->json([
+                'success' => false,
+                'message' => "Cannot update. Only {$cartItem->product->current_stock} items are available in stock."
+            ], 400);
+        }
+
         $cartItem->update([
             'quantity' => $request->quantity
         ]);
 
-        $cart = $cartItem->cart()->with('items.product')->first();
+        $cart = $cartItem->cart()->first();
 
+        // 🌟 កែប្រែត្រង់នេះ៖ បន្ថែម thumbnail និង images
         return response()->json([
             'success' => true,
             'message' => 'Cart item updated successfully.',
-            'data'    => new CartResource($cart)
+            'data'    => new CartResource($cart->load([
+                'items.product.thumbnail',
+                'items.product.images'
+            ]))
         ], 200);
     }
-
     // លុបទំនិញណាមួយចេញពីកន្ត្រក
     public function removeItem(Request $request, string $itemId)
     {

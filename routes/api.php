@@ -45,14 +45,6 @@ Route::get('check-warranty', [PublicWarrantyController::class, 'check']);
 // Home Page Data (Recommended + New Arrivals)
 Route::get('/home', [HomeController::class, 'index']);
 
-// Cart Routes
-Route::prefix('cart')->group(function () {
-    Route::get('/', [CartController::class, 'index']);
-    Route::post('/add', [CartController::class, 'addItem']);
-    Route::put('/item/{itemId}', [CartController::class, 'updateItem']);
-    Route::delete('/item/{itemId}', [CartController::class, 'removeItem']);
-    Route::delete('/clear', [CartController::class, 'clearCart']);
-});
 
 // =============================================================
 // 2. PROTECTED ROUTES (Logged-in Users)
@@ -65,6 +57,15 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::get('/profile', [UserProfileController::class, 'show']);
         Route::put('/profile', [UserProfileController::class, 'update']);
         Route::post('/profile/image', [UserProfileController::class, 'uploadImage']);
+    });
+
+    // Cart Routes
+    Route::prefix('cart')->group(function () {
+        Route::get('/', [CartController::class, 'index']);
+        Route::post('/add', [CartController::class, 'addItem']);
+        Route::put('/item/{itemId}', [CartController::class, 'updateItem']);
+        Route::delete('/item/{itemId}', [CartController::class, 'removeItem']);
+        Route::delete('/clear', [CartController::class, 'clearCart']);
     });
 
     // =============================================================
