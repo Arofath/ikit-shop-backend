@@ -49,7 +49,31 @@ class ProductService
     public function getAllProducts($request)
     {
         $query = Product::where('is_active', true)
-            ->with(['brand', 'categories', 'images']); // Join យកទិន្នន័យដែលចាំបាច់
+            ->with(['brand', 'categories', 'images', 'thumbnail']); // Join យកទិន្នន័យដែលចាំបាច់
+
+        // ==========================================
+        // 🌟 ០. មុខងារស្វែងរក (Global Search)
+        // ==========================================
+        if ($request->has('search') && !empty($request->search)) {
+            $searchTerm = $request->search;
+
+            // ⚠️ ចំណាំ៖ ត្រូវប្រើ function ($q) ដើម្បីរុំវា កុំឱ្យវាទៅទង្គិចជាមួយលក្ខខណ្ឌ is_active = true ខាងលើ
+            $query->where(function ($q) use ($searchTerm) {
+                // ១. ស្វែងរកតាមឈ្មោះទំនិញ ឬ SKU
+                $q->where('name', 'LIKE', '%' . $searchTerm . '%')
+                    ->orWhere('sku', 'LIKE', '%' . $searchTerm . '%')
+
+                    // ២. ស្វែងរកតាមឈ្មោះ Brand (ម៉ាក)
+                    ->orWhereHas('brand', function ($brandQuery) use ($searchTerm) {
+                        $brandQuery->where('name', 'LIKE', '%' . $searchTerm . '%');
+                    })
+
+                    // ៣. ស្វែងរកតាមឈ្មោះ Category (ប្រភេទ)
+                    ->orWhereHas('categories', function ($catQuery) use ($searchTerm) {
+                        $catQuery->where('name', 'LIKE', '%' . $searchTerm . '%');
+                    });
+            });
+        }
 
         // ==========================================
         // 🌟 ១. មុខងារត្រងទិន្នន័យ (Filters)
