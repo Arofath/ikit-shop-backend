@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\Admin\SystemController;
 use App\Http\Controllers\Api\Auth\GoogleAuthController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\HomeController;
 use App\Http\Controllers\Api\OrderController as ShopOrderController;
 use App\Http\Controllers\Api\PublicWarrantyController;
@@ -66,6 +67,12 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::put('/item/{itemId}', [CartController::class, 'updateItem']);
         Route::delete('/item/{itemId}', [CartController::class, 'removeItem']);
         Route::delete('/clear', [CartController::class, 'clearCart']);
+    });
+
+    // Favorite Routes
+    Route::prefix('favorites')->group(function () {
+        Route::get('/', [FavoriteController::class, 'index']);
+        Route::post('/toggle', [FavoriteController::class, 'toggle']);
     });
 
     // =============================================================

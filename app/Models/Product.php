@@ -28,7 +28,7 @@ class Product extends Model
         'is_serialized',
         'is_recommended',
         'sort_order',
-        
+
     ];
 
     protected function casts(): array
@@ -117,6 +117,11 @@ class Product extends Model
     public function cartItems()
     {
         return $this->hasMany(CartItem::class);
+    }
+
+    public function favorites()
+    {
+        return $this->hasMany(Favorite::class);
     }
 
     // --- Scopes ---
