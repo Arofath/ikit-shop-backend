@@ -75,7 +75,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::post('/toggle', [FavoriteController::class, 'toggle']);
     });
 
-    // Order & Checkout Routes (តម្រូវឱ្យ Login)
+    // Order & Checkout Routes 
     Route::prefix('orders')->group(function () {
         Route::get('/', [OrderController::class, 'index']); // មើលប្រវត្តិទិញ
         Route::post('/checkout', [OrderController::class, 'store']); // បញ្ជាទិញ
