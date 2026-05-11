@@ -32,12 +32,12 @@ Route::prefix('auth/google')->group(function () {
 });
 
 Route::prefix('products')->group(function () {
+    Route::get('/suggestions', [ProductController::class, 'suggestions']);
     Route::get('/', [ProductController::class, 'storefrontIndex']);
     Route::get('/{slug}/related', [ProductController::class, 'getRelatedProducts']);
     Route::get('/{slug}', [ProductController::class, 'showBySlug']);
     Route::get('/{product:slug}/images', [ProductImageController::class, 'index']);
 });
-Route::get('/products/suggestions', [ProductController::class, 'suggestions']);
 
 Route::get('/categories', [CategoryController::class, 'storefrontIndex']);
 Route::get('/brands', [BrandController::class, 'storefrontIndex']);
