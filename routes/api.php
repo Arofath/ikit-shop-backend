@@ -83,6 +83,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::get('/{id}', [PublicOrderController::class, 'show']); // មើលវិក្កយបត្រលម្អិត
     });
 
+    // Addresses
     Route::prefix('addresses')->group(function () {
         Route::get('/', [AddressController::class, 'index']);
         Route::post('/', [AddressController::class, 'store']);
