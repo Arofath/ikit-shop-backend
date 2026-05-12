@@ -1,18 +1,19 @@
 <?php
 
-use App\Http\Controllers\AIGeneratorController;
+use App\Http\Controllers\Api\AddressController;
 use App\Http\Controllers\Api\Admin\{UserManagementController, CategoryController, BrandController, ProductController, ProductImageController, ProductSpecController, ProductStockMovementController, SlideshowController, SupplierController, WarrantyController, ProductSerialController, SettingController};
+use App\Http\Controllers\Api\Admin\AIGeneratorController;
 use App\Http\Controllers\Api\Admin\DashboardController;
-// use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
+use App\Http\Controllers\Api\Admin\OrderController;
 use App\Http\Controllers\Api\Admin\SystemController;
 use App\Http\Controllers\Api\Auth\GoogleAuthController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\HomeController;
-use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\OrderController as PublicOrderController;
 use App\Http\Controllers\Api\PublicWarrantyController;
 use App\Http\Controllers\Api\UserProfileController;
-use App\Http\Controllers\CartController;
 use Illuminate\Support\Facades\Route;
 
 // =============================================================
@@ -77,9 +78,16 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
 
     // Order & Checkout Routes 
     Route::prefix('orders')->group(function () {
-        Route::get('/', [OrderController::class, 'index']); // មើលប្រវត្តិទិញ
-        Route::post('/checkout', [OrderController::class, 'store']); // បញ្ជាទិញ
-        Route::get('/{id}', [OrderController::class, 'show']); // មើលវិក្កយបត្រលម្អិត
+        Route::get('/', [PublicOrderController::class, 'index']); // មើលប្រវត្តិទិញ
+        Route::post('/checkout', [PublicOrderController::class, 'store']); // បញ្ជាទិញ
+        Route::get('/{id}', [PublicOrderController::class, 'show']); // មើលវិក្កយបត្រលម្អិត
+    });
+
+    Route::prefix('addresses')->group(function () {
+        Route::get('/', [AddressController::class, 'index']);
+        Route::post('/', [AddressController::class, 'store']);
+        Route::patch('/{id}/set-default', [AddressController::class, 'setAsDefault']);
+        Route::delete('/{id}', [AddressController::class, 'destroy']);
     });
 
     // =============================================================
@@ -196,16 +204,11 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::post('/', [SettingController::class, 'update']);
         });
 
-        // Route::prefix('orders')->group(function () {
-        //     // មើលបញ្ជី Order
-        //     Route::get('/', [AdminOrderController::class, 'index']);
-
-        //     // មើល Order លម្អិត
-        //     Route::get('/orders/{id}', [AdminOrderController::class, 'show']);
-
-        //     // កែប្រែស្ថានភាព (ប៊ូតុង Mark as Shipped)
-        //     Route::patch('/orders/{id}/status', [AdminOrderController::class, 'updateStatus']);
-        // });
+        Route::prefix('orders')->group(function () {
+            Route::get('/', [OrderController::class, 'index']);
+            Route::get('/{id}', [OrderController::class, 'show']);
+            Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
+        });
 
         Route::post('/system/clear-cache', [SystemController::class, 'clearCache']);
     });

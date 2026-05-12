@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\OrderResource;
 use App\Models\Cart;
 use App\Models\Order;
+use App\Models\ProductStockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -37,6 +38,9 @@ class OrderController extends Controller
             ], 400);
         }
 
+        // 🌟 បង្កើតលេខវិក្កយបត្រទុកមុន ដើម្បីយកទៅប្រើប្រាស់ក្នុងការកត់ត្រាចរាចរណ៍ស្តុក
+        $orderNumber = 'ORD-' . date('Ymd') . '-' . strtoupper(Str::random(5));
+
         // 🌟 ចាប់ផ្តើម Transaction (បើមាន Error ត្រង់ណា វាលុបចោលវិញទាំងអស់)
         DB::beginTransaction();
 
@@ -48,7 +52,7 @@ class OrderController extends Controller
             foreach ($cart->items as $cartItem) {
                 $product = $cartItem->product;
 
-                // ឆែកមើលក្រែងលោមានគេទិញអស់មុន
+                // ឆែកមើលក្រែងលោមានគេទិញអស់មុន (ប្រើប្រាស់ Accessor current_stock សម្រាប់តែការអាន)
                 if ($product->current_stock < $cartItem->quantity) {
                     throw new \Exception("Product '{$product->name}' is out of stock or insufficient quantity.");
                 }
@@ -69,17 +73,25 @@ class OrderController extends Controller
                     'subtotal'     => $itemSubtotal,
                 ];
 
-                // 🌟 កាត់ស្តុកទំនិញចេញពីឃ្លាំង
-                $product->decrement('current_stock', $cartItem->quantity);
+                // 🌟 ជំនួសការប្រើ decrement ដោយការកត់ត្រាចូល ProductStockMovement វិញ
+                ProductStockMovement::create([
+                    'product_id'       => $product->id,
+                    'reference_number' => $orderNumber, // លេខវិក្កយបត្រដែលទើបបង្កើត
+                    'type'             => 'OUT',        // ប្រភេទលក់ចេញ
+                    'quantity'         => $cartItem->quantity,
+                    'cost_price'       => $product->cost_price ?? 0,
+                    'balance_after'    => $product->current_stock - $cartItem->quantity, // ស្តុកដែលនៅសល់
+                    'note'             => 'Product sold via checkout',
+                ]);
             }
 
             // ៤. គណនាតម្លៃចុងក្រោយ
-            $shippingFee = 0; // អាចកំណត់ថ្លៃដឹកជញ្ជូននៅទីនេះ (ឧទាហរណ៍៖ 2.00)
+            $shippingFee = 0; // អាចកំណត់ថ្លៃដឹកជញ្ជូននៅទីនេះ
             $grandTotal = $subtotal + $shippingFee;
 
             // ៥. បង្កើតវិក្កយបត្រមេ (Order)
             $order = Order::create([
-                'order_number'     => 'ORD-' . date('Ymd') . '-' . strtoupper(Str::random(5)),
+                'order_number'     => $orderNumber, // 🌟 ប្រើប្រាស់លេខ Order ដែលបង្កើតខាងលើ
                 'user_id'          => $user->id,
                 'shipping_name'    => $request->shipping_name,
                 'shipping_phone'   => $request->shipping_phone,
@@ -113,11 +125,11 @@ class OrderController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Order placed successfully.',
-                'order_id' => $order->id, // បោះ ID អោយ Frontend ដើម្បីលោតទៅ Thank You Page
+                'order_id' => $order->id,
                 'order_number' => $order->order_number
             ], 201);
         } catch (\Exception $e) {
-            // 🚨 បើមានបញ្ហា (ឧ. អស់ស្តុក) លុបចោលប្រតិបត្តិការទាំងអស់ខាងលើ
+            // 🚨 បើមានបញ្ហា លុបចោលប្រតិបត្តិការទាំងអស់ខាងលើ
             DB::rollBack();
 
             return response()->json([
