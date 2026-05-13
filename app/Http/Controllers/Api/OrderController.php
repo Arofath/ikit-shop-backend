@@ -151,11 +151,19 @@ class OrderController extends Controller
 
     public function index(Request $request)
     {
-        // ទាញយកតែ Order ណាដែលជារបស់ User ដែលកំពុង Login ប៉ុណ្ណោះ
+        // 🌟 ១. ចាប់យកពាក្យដែល Frontend បោះមក (ឧទាហរណ៍: ?status=PENDING)
+        $status = $request->query('status');
+
         $orders = Order::where('user_id', $request->user()->id)
-            ->with(['items.product.thumbnail', 'payment']) // ទាញយកទំនិញ រូបភាព និងការបង់ប្រាក់
-            ->latest() // យកវិក្កយបត្រថ្មីៗមកបង្ហាញមុនគេ
-            ->paginate(10); // បែងចែក ១០ វិក្កយបត្រក្នុង ១ ទំព័រ
+            ->with(['items.product.thumbnail', 'payment'])
+
+            // 🌟 ២. មុខងារ Filter (ដើរលុះត្រាតែមានបោះ status មក និងមិនមែនពាក្យ 'ALL')
+            ->when($status && strtoupper($status) !== 'ALL', function ($query) use ($status) {
+                return $query->where('status', strtoupper($status));
+            })
+
+            ->latest()
+            ->paginate(10);
 
         return response()->json([
             'success' => true,
