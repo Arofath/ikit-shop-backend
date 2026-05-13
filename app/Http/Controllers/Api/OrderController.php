@@ -18,108 +18,51 @@ class OrderController extends Controller
      */
     public function store(Request $request)
     {
-        // ១. ត្រួតពិនិត្យទិន្នន័យដែល Frontend បោះមក
         $request->validate([
             'shipping_name'    => 'required|string|max:255',
             'shipping_phone'   => 'required|string|max:20',
+            'city'             => 'required|string',
             'shipping_address' => 'required|string',
             'payment_method'   => 'required|in:CASH_ON_DELIVERY,BANK_TRANSFER',
         ]);
 
         $user = $request->user();
-
-        // ២. ទាញយកកន្ត្រកទំនិញរបស់គាត់ពី Database
         $cart = Cart::with('items.product')->where('user_id', $user->id)->first();
 
         if (!$cart || $cart->items->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Your cart is empty.'
-            ], 400);
+            return response()->json(['success' => false, 'message' => 'Your cart is empty.'], 400);
         }
 
-        // 🌟 បង្កើតលេខវិក្កយបត្រទុកមុន ដើម្បីយកទៅប្រើប្រាស់ក្នុងការកត់ត្រាចរាចរណ៍ស្តុក
         $orderNumber = 'ORD-' . date('Ymd') . '-' . strtoupper(Str::random(5));
 
-        // 🌟 ចាប់ផ្តើម Transaction (បើមាន Error ត្រង់ណា វាលុបចោលវិញទាំងអស់)
         DB::beginTransaction();
 
         try {
-            $subtotal = 0;
-            $orderItemsData = [];
+            // ហៅមុខងាររងមកធ្វើការបន្តបន្ទាប់គ្នា (Clean & Readable)
 
-            // ៣. ឆែកស្តុក និងគណនាលុយ (Loop តាមទំនិញក្នុងកន្ត្រក)
-            foreach ($cart->items as $cartItem) {
-                $product = $cartItem->product;
+            // ក. រៀបចំទំនិញ និងកាត់ស្តុក
+            $processedData = $this->processCartItems($cart->items, $orderNumber);
 
-                // ឆែកមើលក្រែងលោមានគេទិញអស់មុន (ប្រើប្រាស់ Accessor current_stock សម្រាប់តែការអាន)
-                if ($product->current_stock < $cartItem->quantity) {
-                    throw new \Exception("Product '{$product->name}' is out of stock or insufficient quantity.");
-                }
+            // ខ. គណនាថ្លៃដឹក និងតម្លៃសរុប
+            $shippingFee = $this->calculateShippingFee($request->city);
+            $grandTotal  = $processedData['subtotal'] + $shippingFee;
 
-                // គណនាតម្លៃ (យក Final Price ក្រោយបញ្ចុះតម្លៃ)
-                $unitPrice = $product->price - ($product->price * ($product->discount_percent / 100));
-                $itemSubtotal = $unitPrice * $cartItem->quantity;
+            // គ. បង្កើតវិក្កយបត្រមេ
+            $order = $this->createOrderRecord($user, $request, $orderNumber, $processedData['subtotal'], $shippingFee, $grandTotal);
 
-                $subtotal += $itemSubtotal;
+            // ឃ. បញ្ចូលបញ្ជីទំនិញទៅក្នុងវិក្កយបត្រ
+            $order->items()->createMany($processedData['items_data']);
 
-                // រៀបចំទិន្នន័យសម្រាប់ Save ចូល OrderItem
-                $orderItemsData[] = [
-                    'product_id'   => $product->id,
-                    'product_name' => $product->name,
-                    'product_sku'  => $product->sku,
-                    'quantity'     => $cartItem->quantity,
-                    'unit_price'   => $unitPrice,
-                    'subtotal'     => $itemSubtotal,
-                ];
-
-                // 🌟 ជំនួសការប្រើ decrement ដោយការកត់ត្រាចូល ProductStockMovement វិញ
-                ProductStockMovement::create([
-                    'product_id'       => $product->id,
-                    'reference_number' => $orderNumber, // លេខវិក្កយបត្រដែលទើបបង្កើត
-                    'type'             => 'OUT',        // ប្រភេទលក់ចេញ
-                    'quantity'         => $cartItem->quantity,
-                    'cost_price'       => $product->cost_price ?? 0,
-                    'balance_after'    => $product->current_stock - $cartItem->quantity, // ស្តុកដែលនៅសល់
-                    'note'             => 'Product sold via checkout',
-                ]);
-            }
-
-            // ៤. គណនាតម្លៃចុងក្រោយ
-            $shippingFee = 0; // អាចកំណត់ថ្លៃដឹកជញ្ជូននៅទីនេះ
-            $grandTotal = $subtotal + $shippingFee;
-
-            // ៥. បង្កើតវិក្កយបត្រមេ (Order)
-            $order = Order::create([
-                'order_number'     => $orderNumber, // 🌟 ប្រើប្រាស់លេខ Order ដែលបង្កើតខាងលើ
-                'user_id'          => $user->id,
-                'shipping_name'    => $request->shipping_name,
-                'shipping_phone'   => $request->shipping_phone,
-                'shipping_address' => $request->shipping_address,
-                'subtotal'         => $subtotal,
-                'shipping_fee'     => $shippingFee,
-                'grand_total'      => $grandTotal,
-                'status'           => 'PENDING',
-                'payment_status'   => 'UNPAID',
-                'payment_method'   => $request->payment_method,
-            ]);
-
-            // ៦. បង្កើតទំនិញក្នុងវិក្កយបត្រ (Order Items)
-            foreach ($orderItemsData as $itemData) {
-                $order->items()->create($itemData);
-            }
-
-            // ៧. បង្កើតប្រតិបត្តិការបង់ប្រាក់ (Payment)
+            // ង. បង្កើតប្រតិបត្តិការបង់ប្រាក់
             $order->payment()->create([
                 'amount'         => $grandTotal,
                 'payment_method' => $request->payment_method,
                 'status'         => 'PENDING',
             ]);
 
-            // ៨. សម្អាតកន្ត្រកទំនិញ (លុបចោលព្រោះទិញរួចហើយ)
+            // ច. សម្អាតកន្ត្រកទំនិញ
             $cart->items()->delete();
 
-            // 🌟 បញ្ចប់ Transaction ដោយជោគជ័យ
             DB::commit();
 
             return response()->json([
@@ -129,14 +72,81 @@ class OrderController extends Controller
                 'order_number' => $order->order_number
             ], 201);
         } catch (\Exception $e) {
-            // 🚨 បើមានបញ្ហា លុបចោលប្រតិបត្តិការទាំងអស់ខាងលើ
             DB::rollBack();
-
             return response()->json([
                 'success' => false,
                 'message' => 'Checkout failed: ' . $e->getMessage()
             ], 400);
         }
+    }
+
+    // Helper Functions
+    private function calculateShippingFee($city)
+    {
+        $cityName = strtolower(trim($city));
+        return ($cityName === 'phnom penh') ? 2.00 : 2.50;
+    }
+
+    //ឆែកស្តុក កាត់ស្តុក និងរៀបចំទិន្នន័យទំនិញ
+    private function processCartItems($cartItems, $orderNumber)
+    {
+        $subtotal = 0;
+        $orderItemsData = [];
+
+        foreach ($cartItems as $cartItem) {
+            $product = $cartItem->product;
+
+            if ($product->current_stock < $cartItem->quantity) {
+                throw new \Exception("Product '{$product->name}' is out of stock or insufficient quantity.");
+            }
+
+            $unitPrice = $product->price - ($product->price * ($product->discount_percent / 100));
+            $itemSubtotal = $unitPrice * $cartItem->quantity;
+            $subtotal += $itemSubtotal;
+
+            $orderItemsData[] = [
+                'product_id'   => $product->id,
+                'product_name' => $product->name,
+                'product_sku'  => $product->sku,
+                'quantity'     => $cartItem->quantity,
+                'unit_price'   => $unitPrice,
+                'subtotal'     => $itemSubtotal,
+            ];
+
+            // កត់ត្រាចលនាស្តុក
+            ProductStockMovement::create([
+                'product_id'       => $product->id,
+                'reference_number' => $orderNumber,
+                'type'             => 'OUT',
+                'quantity'         => $cartItem->quantity,
+                'cost_price'       => $product->cost_price ?? 0,
+                'balance_after'    => $product->current_stock - $cartItem->quantity,
+                'note'             => 'Product sold via checkout',
+            ]);
+        }
+
+        return [
+            'subtotal'   => $subtotal,
+            'items_data' => $orderItemsData
+        ];
+    }
+
+    // បង្កើតវិក្កយបត្រ (Order Model)
+    private function createOrderRecord($user, $request, $orderNumber, $subtotal, $shippingFee, $grandTotal)
+    {
+        return Order::create([
+            'order_number'     => $orderNumber,
+            'user_id'          => $user->id,
+            'shipping_name'    => $request->shipping_name,
+            'shipping_phone'   => $request->shipping_phone,
+            'shipping_address' => $request->shipping_address, // ទីនេះទុកពេញដដែល
+            'subtotal'         => $subtotal,
+            'shipping_fee'     => $shippingFee,
+            'grand_total'      => $grandTotal,
+            'status'           => 'PENDING',
+            'payment_status'   => 'UNPAID',
+            'payment_method'   => $request->payment_method,
+        ]);
     }
 
     public function index(Request $request)
