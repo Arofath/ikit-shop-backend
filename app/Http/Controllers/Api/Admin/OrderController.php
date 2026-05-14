@@ -17,7 +17,7 @@ class OrderController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Order::with(['user', 'payment'])->latest();
+        $query = Order::with(['user', 'payment', 'items'])->latest();
 
         // 🌟 Admin អាច Filter មើលតែ Order ណាដែល PENDING ឬ COMPLETED បាន
         if ($request->has('status') && $request->status != '') {
