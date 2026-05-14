@@ -24,6 +24,16 @@ class OrderController extends Controller
             $query->where('status', $request->status);
         }
 
+        if ($request->has('payment_status') && $request->payment_status != '') {
+            $query->where('payment_status', $request->payment_status);
+        }
+
+        if ($request->has('search') && $request->search != '') {
+            $search = $request->search;
+            $query->where('order_number', 'LIKE', "%{$search}%")
+                ->orWhere('shipping_name', 'LIKE', "%{$search}%");
+        }
+
         // បែងចែក ១៥ វិក្កយបត្រក្នុងមួយទំព័រ
         $orders = $query->paginate(15);
 
