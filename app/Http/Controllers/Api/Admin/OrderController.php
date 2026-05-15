@@ -134,4 +134,41 @@ class OrderController extends Controller
             ], 500);
         }
     }
+
+    public function updatePaymentStatus(Request $request, $id)
+    {
+        $request->validate([
+            'payment_status' => 'required|in:PAID,UNPAID'
+        ]);
+
+        $order = Order::with('payment')->findOrFail($id);
+        $newStatus = $request->payment_status;
+
+        DB::beginTransaction();
+        try {
+            $order->payment_status = $newStatus;
+
+            // Update ក្នុង Table Payment ផងដែរ ប្រសិនបើមាន
+            if ($order->payment) {
+                $order->payment->update([
+                    'status'  => $newStatus === 'PAID' ? 'COMPLETED' : 'PENDING',
+                    'paid_at' => $newStatus === 'PAID' ? now() : null
+                ]);
+            }
+
+            $order->save();
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Payment status updated to {$newStatus}.",
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update payment status: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

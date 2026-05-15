@@ -209,6 +209,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::get('/', [OrderController::class, 'index']);
             Route::get('/{id}', [OrderController::class, 'show']);
             Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
+            Route::put('/{id}/payment-status', [OrderController::class, 'updatePaymentStatus']);
         });
 
         Route::post('/system/clear-cache', [SystemController::class, 'clearCache']);
