@@ -1,0 +1,50 @@
+ការឈានមកដល់ការរៀបចំប្រព័ន្ធ Notification (ការជូនដំណឹង) គឺជាជំហានដ៏អស្ចារ្យ! មុខងារនេះហើយដែលធ្វើឱ្យប្រព័ន្ធ E-commerce របស់អ្នកមាន "ជីវិត" ពិតប្រាកដ ដោយវាអាចរាយការណ៍ប្រាប់ Admin ភ្លាមៗពេលមានអតិថិជនទិញអីវ៉ាន់ និងប្រាប់អតិថិជនវិញពេលទំនិញកំពុងដឹកជញ្ជូន។
+
+ដើម្បីឱ្យការសរសេរកូដមានភាពរលូន និងមិនរញ៉េរញ៉ៃ ខ្ញុំសូមរៀបចំ លំហូរការងារ (Workflow & Architecture) សម្រាប់ប្រព័ន្ធ Notification នេះជា ៤ ដំណាក់កាលធំៗដូចខាងក្រោម៖
+
+🗺️ ប្លង់លំហូរការងារនៃប្រព័ន្ធ Notification (Notification Workflow)
+ដំណាក់កាលទី ១៖ រៀបចំ Database (Backend - Laravel)
+យើងមិនចាំបាច់បង្កើត Table ខ្លួនឯងពីសូន្យទេ ព្រោះ Laravel មានប្រព័ន្ធ Notification ដ៏ឆ្លាតវៃរួចជាស្រេច។
+
+សកម្មភាព៖ Run command php artisan notifications:table ដើម្បីបង្កើត Table notifications។
+
+រចនាសម្ព័ន្ធ Table៖ វាមាន Column សំខាន់ៗដូចជា id, type (ប្រភេទដំណឹង), notifiable_id (អ្នកទទួលជា Admin ឬ Customer), data (ទិន្នន័យ JSON ដូចជាលេខ Order ឬសារ), និង read_at (ម៉ោងដែលបានចុចអាន)។
+
+ដំណាក់កាលទី ២៖ កំណត់ព្រឹត្តិការណ៍ដែលត្រូវលោត Notification (Triggers)
+យើងត្រូវកំណត់ថា ពេលណាទើបប្រព័ន្ធត្រូវបាញ់ Notification ចេញ។ សម្រាប់គម្រោងយើង អាចបែងចែកជា ២ ផ្នែក៖
+
+១. លោតទៅកាន់ Admin (Admin Notifications):
+
+ពេលមានភ្ញៀវ បញ្ជាទិញទំនិញថ្មី (New Order Placed)។
+
+ពេលមានភ្ញៀវ សុំលុបចោលការបញ្ជាទិញ (Order Cancel Request)។
+
+២. លោតទៅកាន់ Customer (Customer Notifications):
+
+ពេល Admin ដូរ Status ទៅជា PROCESSING (អីវ៉ាន់កំពុងរៀបចំ)។
+
+ពេល Admin ដូរ Status ទៅជា SHIPPED (អីវ៉ាន់ចេញដឹកហើយ)។
+
+ពេល Admin ដូរ Payment ទៅជា PAID (ទទួលបានប្រាក់ហើយ)។
+
+ដំណាក់កាលទី ៣៖ រៀបចំ Backend APIs
+យើងត្រូវបង្កើត Controller មួយ (ឧ. NotificationController) ដើម្បីឱ្យ Frontend អាចហៅយកទិន្នន័យបាន៖
+
+GET /api/notifications : ទាញយកបញ្ជី Notification ទាំងអស់របស់អ្នកប្រើប្រាស់។
+
+GET /api/notifications/unread-count : ទាញយកតែ "ចំនួនលេខក្រហម" (ឧ. លោតលេខ ៣ នៅលើកណ្តឹង)។
+
+POST /api/notifications/{id}/mark-as-read : ពេលគេចុចលើដំណឹងណាមួយ វាដូរពី Unread ទៅ Read (បាត់ពណ៌ Highlight)។
+
+POST /api/notifications/mark-all-read : ប៊ូតុងចុច "Mark all as read"។
+
+ដំណាក់កាលទី ៤៖ រៀបចំ Frontend (Vue.js + Pinia)
+Store (notificationStore.js): សម្រាប់ផ្ទុកបញ្ជី Notification និងចំនួន Unread Count ដើម្បងាយស្រួលហៅប្រើគ្រប់ទំព័រ។
+
+UI Components:
+
+រូបកណ្តឹង (Bell Icon): ដាក់នៅ Topbar របស់ Admin និង Header របស់ Storefront។ វាមាន Badge ពណ៌ក្រហមតូចបង្ហាញចំនួន។
+
+Dropdown / Offcanvas: ពេលចុចលើកណ្តឹង វាទម្លាក់ផ្ទាំងមកបង្ហាញដំណឹងថ្មីៗ។
+
+Real-time អាប់ដេត (ជម្រើសខ្ពស់): បើយើងចង់ឱ្យលោតកណ្តឹងភ្លាមៗដោយមិនបាច់ Refresh វេបសាយ យើងត្រូវប្រើ WebSockets (ដូចជា Laravel Reverb ឬ Pusher)។ ប៉ុន្តែសម្រាប់ជំហានដំបូង យើងអាចប្រើបច្ចេកទេសហៅ API រាល់ពេលប្តូរទំព័រ ឬរាល់ ១នាទីម្តង (Polling) សិនក៏បាន។

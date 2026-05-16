@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\HomeController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrderController as PublicOrderController;
 use App\Http\Controllers\Api\PublicWarrantyController;
 use App\Http\Controllers\Api\UserProfileController;
@@ -90,6 +91,14 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::patch('/{id}/set-default', [AddressController::class, 'setAsDefault']);
         Route::delete('/{id}', [AddressController::class, 'destroy']);
     });
+
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [ NotificationController::class, 'index']);
+        Route::patch('/{id}/read', [ NotificationController::class, 'markAsRead']);
+        Route::post('/read-all', [ NotificationController::class, 'markAllAsRead']);
+    });
+
+
 
     // =============================================================
     // 3. ADMIN ONLY ROUTES (Super Admin & Admins)

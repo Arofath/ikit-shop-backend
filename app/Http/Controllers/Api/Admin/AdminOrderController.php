@@ -4,11 +4,10 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AdminOrderResource;
+use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductStockMovement;
-use App\Notifications\OrderStatusUpdatedNotification;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
@@ -122,10 +121,6 @@ class OrderController extends Controller
 
             DB::commit();
 
-            if ($order->user) { // បញ្ជាក់ថាភ្ញៀវនេះមានគណនី (មិនមែន Guest)
-                $order->user->notify(new OrderStatusUpdatedNotification($order, 'status'));
-            }
-
             return response()->json([
                 'success' => true,
                 'message' => "Order status successfully updated to {$newStatus}.",
@@ -163,10 +158,6 @@ class OrderController extends Controller
 
             $order->save();
             DB::commit();
-
-            if ($order->user) {
-                $order->user->notify(new OrderStatusUpdatedNotification($order, 'payment'));
-            }
 
             return response()->json([
                 'success' => true,

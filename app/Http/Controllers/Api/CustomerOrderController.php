@@ -7,11 +7,8 @@ use App\Http\Resources\OrderResource;
 use App\Models\Cart;
 use App\Models\Order;
 use App\Models\ProductStockMovement;
-use App\Models\User;
-use App\Notifications\NewOrderNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 class OrderController extends Controller
@@ -67,11 +64,6 @@ class OrderController extends Controller
             $cart->items()->delete();
 
             DB::commit();
-
-            $admins = User::whereIn('role', ['admin', 'super_admin'])->get();
-            if ($admins->isNotEmpty()) {
-                Notification::send($admins, new NewOrderNotification($order));
-            }
 
             return response()->json([
                 'success' => true,
