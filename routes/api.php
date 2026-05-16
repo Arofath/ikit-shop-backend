@@ -221,6 +221,12 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::put('/{id}/payment-status', [OrderController::class, 'updatePaymentStatus']);
         });
 
+        Route::prefix('notifications')->group(function () {
+            Route::get('/', [NotificationController::class, 'index']);
+            Route::patch('/{id}/read', [NotificationController::class, 'markAsRead']);
+            Route::post('/read-all', [NotificationController::class, 'markAllAsRead']);
+        });
+
         Route::post('/system/clear-cache', [SystemController::class, 'clearCache']);
     });
 });
