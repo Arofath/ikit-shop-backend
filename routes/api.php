@@ -5,12 +5,14 @@ use App\Http\Controllers\Api\Admin\{UserManagementController, CategoryController
 use App\Http\Controllers\Api\Admin\AIGeneratorController;
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\OrderController;
+use App\Http\Controllers\Api\Admin\ContactController as AdminContactController;
 use App\Http\Controllers\Api\Admin\SystemController;
 use App\Http\Controllers\Api\Auth\GoogleAuthController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\HomeController;
+use App\Http\Controllers\Api\ContactController as CustomerContactController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrderController as PublicOrderController;
 use App\Http\Controllers\Api\PublicWarrantyController;
@@ -48,6 +50,9 @@ Route::get('check-warranty', [PublicWarrantyController::class, 'check']);
 
 // Home Page Data (Recommended + New Arrivals)
 Route::get('/home', [HomeController::class, 'index']);
+
+// Contact Us
+Route::post('/contacts', [CustomerContactController::class, 'store']); 
 
 // =============================================================
 // 2. PROTECTED ROUTES (Logged-in Users)
@@ -225,6 +230,12 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::get('/', [NotificationController::class, 'index']);
             Route::patch('/{id}/read', [NotificationController::class, 'markAsRead']);
             Route::post('/read-all', [NotificationController::class, 'markAllAsRead']);
+        });
+
+        Route::prefix('contacts')->group(function () {
+            Route::get('/', [AdminContactController::class, 'index']);
+            Route::get('/{id}', [AdminContactController::class, 'show']);
+            Route::patch('/{id}/status', [AdminContactController::class, 'updateStatus']);
         });
 
         Route::post('/system/clear-cache', [SystemController::class, 'clearCache']);
