@@ -51,9 +51,19 @@ class ProductController extends Controller
             })
             ->when($request->filled('brand_id'), fn($q) => $q->where('brand_id', $request->brand_id))
             ->when($request->has('is_active'), fn($q) => $q->where('is_active', $request->boolean('is_active')))
-
-            // 🌟 ១. បន្ថែម Filter សម្រាប់ Storefront Layout
             ->when($request->has('is_recommended'), fn($q) => $q->where('is_recommended', $request->boolean('is_recommended')))
+            ->when($request->has('has_discount'), function ($q) use ($request) {
+                if ($request->boolean('has_discount')) {
+                    // បើបញ្ជូនមក has_discount=1 ឬ true គឺយកតែអាមានភាគរយបញ្ចុះតម្លៃធំជាង ០
+                    $q->where('discount_percent', '>', 0);
+                } else {
+                    // បើបញ្ជូនមក has_discount=0 ឬ false គឺយកតែអាអត់បញ្ចុះតម្លៃ
+                    $q->where(function ($query) {
+                        $query->where('discount_percent', '<=', 0)
+                            ->orWhereNull('discount_percent');
+                    });
+                }
+            })
 
             // 🌟 ២. រៀបចំលំដាប់ (Sorting) ជំនួសឱ្យការប្រើត្រឹម ->latest()
             ->when($request->get('sort_by') === 'sort_order', function ($q) {

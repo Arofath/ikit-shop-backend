@@ -215,7 +215,6 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         // Settings
         Route::prefix('settings')->group(function () {
             Route::get('/', [SettingController::class, 'index']);
-            // ប្រើ POST ព្រោះយើងមាន Upload រូបភាព (Logo)
             Route::post('/', [SettingController::class, 'update']);
         });
 
