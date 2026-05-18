@@ -219,6 +219,10 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::post('/', [SettingController::class, 'update']);
         });
 
+        Route::prefix('settings')->group(function () {
+            Route::get('/discount-sort', [SettingController::class, 'getDiscountSort']);
+            Route::post('/discount-sort', [SettingController::class, 'updateDiscountSort']);
+        });
         Route::prefix('orders')->group(function () {
             Route::get('/', [OrderController::class, 'index']);
             Route::get('/{id}', [OrderController::class, 'show']);

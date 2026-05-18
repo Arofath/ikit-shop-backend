@@ -26,6 +26,42 @@ class SettingController extends Controller
         ], 200);
     }
 
+    // ១. ទាញយកជម្រើសបច្ចុប្បន្ន
+    public function getDiscountSort()
+    {
+        $setting = Setting::where('key', 'discount_sort_type')->first();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $setting ? $setting->value : 'highest_discount' // Default យកបញ្ចុះច្រើនជាងគេ
+        ]);
+    }
+
+    // ២. Update ជម្រើសថ្មី
+    public function updateDiscountSort(Request $request)
+    {
+        $request->validate([
+            'sort_type' => 'required|in:highest_discount,latest,manual'
+        ]);
+
+        // 🌟 updateOrCreate: បើមានស្រាប់វា Update, បើអត់ទាន់មាន វាបង្កើតថ្មី
+        Setting::updateOrCreate(
+            ['key' => 'discount_sort_type'], // លក្ខខណ្ឌស្វែងរក
+            [
+                'value' => $request->sort_type,
+                'group' => 'storefront' // 🌟 បញ្ចូល group name ត្រង់នេះ!
+            ]
+        );
+
+        // លុប Cache របស់ Homepage ចោល ដើម្បីឱ្យវាលោតទិន្នន័យថ្មី
+        Cache::forget('home_page_data');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Discount products sorting updated successfully!'
+        ]);
+    }
+
     // Save ឬ Update Settings ច្រើនក្នុងពេលតែមួយ
     public function update(Request $request, CloudinaryStorageService $storage)
     {

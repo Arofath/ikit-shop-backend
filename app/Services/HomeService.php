@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\Slideshow;
 use Illuminate\Support\Facades\Cache;
 
@@ -60,6 +61,7 @@ class HomeService
                     return $category;
                 });
 
+            // ៥. ទាញយក Sidebar Categories
             $sidebarCategories = Category::whereNull('parent_id') // យកតែមេ
                 ->where('is_active', true)
                 // 🚫 មិនបាច់ដាក់លក្ខខណ្ឌ is_popular ទេ ព្រោះចង់បង្ហាញទាំងអស់
@@ -73,10 +75,28 @@ class HomeService
                 }])
                 ->get(); // ទាញយកទាំងអស់ (បើមានច្រើនពេក អាចដាក់ ->take(10) ទៅតាមតម្រូវការ)
 
+            // ៦. ទាញយក Slideshows
             $slideshows = Slideshow::where('is_active', true)
                 ->orderByRaw('position = 0, position ASC') // តម្រៀបតាមលេខរៀង Admin
                 ->latest()
                 ->get();
+
+            // 🌟 ៧. បន្ថែមថ្មី៖ ទាញយក Discount Products (ទំនិញកំពុងបញ្ចុះតម្លៃ)
+            $discountSortType = Setting::where('key', 'discount_sort_type')->value('value') ?? 'highest_discount';
+
+            $discountQuery = Product::with(['thumbnail', 'brand'])
+                ->where('is_active', true)
+                ->where('discount_percent', '>', 0);
+
+            if ($discountSortType === 'highest_discount') {
+                $discountQuery->orderBy('discount_percent', 'DESC');
+            } elseif ($discountSortType === 'latest') {
+                $discountQuery->latest();
+            } elseif ($discountSortType === 'manual') {
+                $discountQuery->orderByRaw('sort_order = 0, sort_order ASC')->latest();
+            }
+
+            $discountProducts = $discountQuery->take(10)->get();
 
             // បោះទិន្នន័យទាំងអស់ទៅកាន់ Frontend
             return [
@@ -86,6 +106,7 @@ class HomeService
                 'popular_categories' => $popularCategories,
                 'sidebar_categories' => $sidebarCategories,
                 'slideshows'         => $slideshows,
+                'discount_products'  => $discountProducts
             ];
         });
     }
