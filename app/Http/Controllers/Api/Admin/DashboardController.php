@@ -66,23 +66,31 @@ class DashboardController extends Controller
         $labels = [];
         $revenue = [];
         $orders = [];
-        $paidOrders = []; // 🌟 បង្កើត Array ថ្មី
+        $paidOrders = [];
 
         $currentDate = $chartStart->copy();
         while ($currentDate <= $chartEnd) {
-            // ... (ការកំណត់ $key និង $labels រក្សាទុកដដែល) ...
+            if ($groupBy === 'month') {
+                $key = $currentDate->format('Y-m');
+                $labels[] = $currentDate->format('M Y'); // ឧ. May 2024
+                $currentDate->addMonth();
+            } else {
+                $key = $currentDate->format('Y-m-d');
+                $labels[] = $currentDate->format('d M'); // ឧ. 15 May
+                $currentDate->addDay();
+            }
 
             $stat = $stats->get($key);
             $revenue[] = $stat ? (float) $stat->revenue : 0;
             $orders[] = $stat ? (int) $stat->orders_count : 0;
-            $paidOrders[] = $stat ? (int) $stat->paid_orders_count : 0; // 🌟 ទាញយកទិន្នន័យ
+            $paidOrders[] = $stat ? (int) $stat->paid_orders_count : 0;
         }
 
         $chartData = [
             'labels'  => $labels,
             'revenue' => $revenue,
             'orders'  => $orders,
-            'paid_orders' => $paidOrders // 🌟 បញ្ជូនទៅ Frontend
+            'paid_orders' => $paidOrders
         ];
 
         // ==========================================
