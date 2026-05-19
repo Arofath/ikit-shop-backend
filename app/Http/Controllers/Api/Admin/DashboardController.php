@@ -6,60 +6,104 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Product;
 use App\Models\ProductStockMovement;
+use App\Models\Order; // 🌟 ទាញយក Model Order
+use App\Models\User;  // 🌟 ទាញយក Model User
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
     public function index(Request $request)
     {
         // ==========================================
-        // ១. KPIs (Summary Cards) - E-commerce Focus
+        // ១. KPIs (Summary Cards) - Real Data
         // ==========================================
         $summary = [
-            'total_revenue'   => 24500.50, // Mock: ចំណូលសរុបខែនេះ
-            'total_orders'    => 1254,     // Mock: ចំនួន Order ខែនេះ
-            'active_customers' => 890,      // Mock: អតិថិជនសកម្ម
-            'pending_orders'  => 45,       // Mock: Order មិនទាន់ដោះស្រាយ
+            // សរុបចំណូលពី Order ដែលបានបង់ប្រាក់រួច (PAID/COMPLETED)
+            'total_revenue'   => Order::whereIn('status', ['PAID', 'COMPLETED'])->sum('total_amount'),
 
-            // ទុកទិន្នន័យ Product ខ្លះក្រែងលោត្រូវការ
+            // សរុបចំនួន Order ទាំងអស់
+            'total_orders'    => Order::count(),
+
+            // សរុបអតិថិជន (សន្មតថា user ដែលមាន role = 'customer' ឬ 'user')
+            'active_customers' => User::where('role', 'customer')->count(),
+
+            // Order ដែលកំពុងរង់ចាំ (PENDING)
+            'pending_orders'  => Order::where('status', 'PENDING')->count(),
+
             'total_products'  => Product::count(),
         ];
 
         // ==========================================
         // ២. Chart Data (Revenue & Orders 6 ខែចុងក្រោយ)
         // ==========================================
+        $sixMonthsAgo = Carbon::now()->subMonths(5)->startOfMonth();
+
+        // ទាញទិន្នន័យ Group តាមខែ
+        $monthlyStats = Order::select(
+            DB::raw('SUM(total_amount) as revenue'),
+            DB::raw('COUNT(id) as orders_count'),
+            DB::raw('MONTH(created_at) as month_num'),
+            DB::raw('DATE_FORMAT(created_at, "%b") as month_name')
+        )
+            ->where('created_at', '>=', $sixMonthsAgo)
+            ->groupBy('month_name', 'month_num')
+            ->orderBy('month_num')
+            ->get();
+
         $chartData = [
-            'labels'  => ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'],
-            'revenue' => [18500, 21000, 19000, 24800, 22000, 24500.50],
-            'orders'  => [850, 1050, 920, 1150, 1020, 1254]
+            'labels'  => [],
+            'revenue' => [],
+            'orders'  => []
         ];
+
+        // បញ្ចូលទិន្នន័យទៅក្នុង Array សម្រាប់ Chart
+        foreach ($monthlyStats as $stat) {
+            $chartData['labels'][]  = $stat->month_name;
+            $chartData['revenue'][] = (float) $stat->revenue;
+            $chartData['orders'][]  = (int) $stat->orders_count;
+        }
 
         // ==========================================
         // ៣. Sales Activities (Recent Orders & Top Selling)
         // ==========================================
-        $salesActivities = [
-            // Mock: តារាង Order ថ្មីៗ
-            'recent_orders' => [
-                ['id' => '#ORD-001', 'customer' => 'Sok Dara', 'total' => 1250.00, 'status' => 'PENDING', 'date' => '2 mins ago'],
-                ['id' => '#ORD-002', 'customer' => 'Chan Minea', 'total' => 85.50, 'status' => 'PAID', 'date' => '1 hour ago'],
-                ['id' => '#ORD-003', 'customer' => 'John Doe', 'total' => 3400.00, 'status' => 'SHIPPED', 'date' => '3 hours ago'],
-                ['id' => '#ORD-004', 'customer' => 'Meas Sreypich', 'total' => 450.00, 'status' => 'COMPLETED', 'date' => '5 hours ago'],
-            ],
 
-            // យក Product ពិតប្រាកដមកលាយជាមួយចំនួនលក់ក្លែងក្លាយ
-            'top_selling_products' => Product::select('id', 'name', 'sku', 'price')
-                ->with('thumbnail')
-                ->latest()
-                ->take(4) // យកតែ ៤ មុខ
-                ->get()
-                ->map(function ($product) {
-                    $product->sold_qty = rand(50, 200); // Mock: ចំនួនលក់
-                    return $product;
-                })->sortByDesc('sold_qty')->values()
+        // ទាញយក Order ថ្មីៗបំផុតចំនួន ៤ (ត្រូវមាន relationship 'user' ឬ 'customer' ក្នុង Order Model)
+        $recentOrdersRaw = Order::with('user')->latest()->take(4)->get();
+
+        $recentOrders = $recentOrdersRaw->map(function ($order) {
+            return [
+                'id'       => '#ORD-' . str_pad($order->id, 4, '0', STR_PAD_LEFT),
+                'customer' => $order->user ? $order->user->name : 'Guest',
+                'total'    => $order->total_amount,
+                'status'   => strtoupper($order->status),
+                'date'     => $order->created_at->diffForHumans(), // លោតជា 2 mins ago...
+            ];
+        });
+
+        // ទាញយកទំនិញលក់ដាច់ជាងគេ ៤ មុខ
+        // 💡 ចំណាំ៖ តម្រូវឱ្យមាន Relationship `orderItems()` នៅក្នុង Product Model របស់អ្នក
+        $topSellingProducts = Product::withSum('orderItems', 'quantity')
+            ->with('thumbnail')
+            ->having('order_items_sum_quantity', '>', 0)
+            ->orderByDesc('order_items_sum_quantity')
+            ->take(4)
+            ->get()
+            ->map(function ($product) {
+                $product->sold_qty = $product->order_items_sum_quantity; // យកតម្លៃពិតមកដាក់
+                return $product;
+            });
+
+        $salesActivities = [
+            'recent_orders'        => $recentOrders,
+            'top_selling_products' => $topSellingProducts
         ];
 
         // ==========================================
         // ៤. Secondary Info (Stock Alerts & Recent Customers)
         // ==========================================
+
+        // Stock Alerts (រក្សាទុកកូដចាស់របស់អ្នកព្រោះវាដើរត្រូវហើយ)
         $stockSubquery = ProductStockMovement::selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0)")
             ->whereColumn('product_stock_movements.product_id', 'products.id');
 
@@ -70,16 +114,19 @@ class DashboardController extends Controller
             ->get();
 
         $alerts = [
-            // យកតែ ៤ មុខដែលជិតអស់ ឬអស់ស្តុក ដើម្បីកុំឱ្យចង្អៀត UI
-            'low_stock' => $productsWithStock->where('current_stock', '>', 0)->take(4)->values(),
+            'low_stock'    => $productsWithStock->where('current_stock', '>', 0)->take(4)->values(),
             'out_of_stock' => $productsWithStock->where('current_stock', '<=', 0)->take(4)->values(),
         ];
 
-        $recentCustomers = [
-            ['name' => 'Alice Smith', 'email' => 'alice@example.com', 'joined' => 'Today'],
-            ['name' => 'Bob Johnson', 'email' => 'bob@example.com', 'joined' => 'Yesterday'],
-            ['name' => 'Virak Roth', 'email' => 'virak.roth@example.com', 'joined' => '2 days ago'],
-        ];
+        // ទាញយកអតិថិជនថ្មីៗ ៣ នាក់ចុងក្រោយ
+        $recentCustomersRaw = User::where('role', 'customer')->latest()->take(3)->get();
+        $recentCustomers = $recentCustomersRaw->map(function ($user) {
+            return [
+                'name'   => $user->name,
+                'email'  => $user->email,
+                'joined' => $user->created_at->diffForHumans(),
+            ];
+        });
 
         // ==========================================
         // ៥. ផ្គុំទិន្នន័យបញ្ជូនទៅ Frontend
