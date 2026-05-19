@@ -16,69 +16,126 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         // ==========================================
-        // ១. KPIs (Summary Cards) - Real Data
+        // ១. ចាប់យក Filter Parameter ពី Request
         // ==========================================
-        $summary = [
-            // 🌟 កែមកប្រើ grand_total និងឆែកមើល payment_status = PAID សម្រាប់ចំណូល
-            'total_revenue'   => Order::where('payment_status', 'PAID')->sum('grand_total'),
+        // បើគ្មានគេបញ្ជូនមកទេ យើងយក 'last_6_months' ជា Default
+        $range = $request->query('range', 'last_6_months');
 
-            'total_orders'    => Order::count(),
+        $startDate = Carbon::now();
+        $endDate = Carbon::now();
+        $groupBy = 'month'; // ជម្រើសគឺ 'month' ឬ 'day'
 
-            'active_customers' => User::where('role', 'customer')->count(),
-
-            'pending_orders'  => Order::where('status', 'PENDING')->count(),
-
-            'total_products'  => Product::count(),
-        ];
-
-        // ==========================================
-        // ២. Chart Data (Revenue & Orders 6 ខែចុងក្រោយ)
-        // ==========================================
-        $sixMonthsAgo = Carbon::now()->subMonths(5)->startOfMonth();
-
-        // ទាញទិន្នន័យ Group តាមខែ
-        $monthlyStats = Order::select(
-            DB::raw('SUM(grand_total) as revenue'), // 🌟 កែមកប្រើ grand_total
-            DB::raw('COUNT(id) as orders_count'),
-            DB::raw('MONTH(created_at) as month_num'),
-            DB::raw('DATE_FORMAT(created_at, "%b") as month_name')
-        )
-            ->where('created_at', '>=', $sixMonthsAgo)
-            ->groupBy('month_name', 'month_num')
-            ->orderBy('month_num')
-            ->get();
-
-        $chartData = [
-            'labels'  => [],
-            'revenue' => [],
-            'orders'  => []
-        ];
-
-        foreach ($monthlyStats as $stat) {
-            $chartData['labels'][]  = $stat->month_name;
-            $chartData['revenue'][] = (float) $stat->revenue;
-            $chartData['orders'][]  = (int) $stat->orders_count;
+        // កំណត់ថ្ងៃចាប់ផ្តើម និងថ្ងៃបញ្ចប់ ទៅតាមប្រភេទ Filter
+        switch ($range) {
+            case 'last_7_days':
+                $startDate = Carbon::now()->subDays(6)->startOfDay(); // រាប់បញ្ច្រាស ៦ថ្ងៃ + ថ្ងៃនេះ = ៧ថ្ងៃ
+                $endDate = Carbon::now()->endOfDay();
+                $groupBy = 'day';
+                break;
+            case 'this_month':
+                $startDate = Carbon::now()->startOfMonth();
+                $endDate = Carbon::now()->endOfDay();
+                $groupBy = 'day';
+                break;
+            case 'last_month':
+                $startDate = Carbon::now()->subMonth()->startOfMonth();
+                $endDate = Carbon::now()->subMonth()->endOfMonth();
+                $groupBy = 'day';
+                break;
+            case 'this_year':
+                $startDate = Carbon::now()->startOfYear();
+                $endDate = Carbon::now()->endOfDay();
+                $groupBy = 'month';
+                break;
+            case 'last_6_months':
+            default:
+                $startDate = Carbon::now()->subMonths(5)->startOfMonth();
+                $endDate = Carbon::now()->endOfDay();
+                $groupBy = 'month';
+                break;
         }
 
         // ==========================================
-        // ៣. Sales Activities (Recent Orders & Top Selling)
+        // ២. Query ទិន្នន័យ Chart តាមថ្ងៃ ឬ ខែ
         // ==========================================
+        // កំណត់ទម្រង់ Group ក្នុង SQL ឱ្យត្រូវតាមលក្ខខណ្ឌ
+        if ($groupBy === 'month') {
+            $selectRaw = [
+                DB::raw('SUM(grand_total) as revenue'),
+                DB::raw('COUNT(id) as orders_count'),
+                DB::raw('DATE_FORMAT(created_at, "%Y-%m") as group_key') // ឧ. 2024-05
+            ];
+        } else {
+            $selectRaw = [
+                DB::raw('SUM(grand_total) as revenue'),
+                DB::raw('COUNT(id) as orders_count'),
+                DB::raw('DATE(created_at) as group_key') // ឧ. 2024-05-15
+            ];
+        }
 
+        // ទាញយក និងចងក្រង (Group) ទិន្នន័យ
+        $stats = Order::select($selectRaw)
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->where('payment_status', 'PAID') // រាប់តែ Order ដែលបានបង់ប្រាក់រួច
+            ->groupBy('group_key')
+            ->get()
+            ->keyBy('group_key'); // ធ្វើឱ្យងាយស្រួលទាញយកតាម Key
+
+        $labels = [];
+        $revenue = [];
+        $orders = [];
+
+        // 🌟 Loop បង្កើត Labels និងបញ្ចូលទិន្នន័យ (ទោះខែ/ថ្ងៃនោះអត់លក់ដាច់ក៏ដោយ ក៏ដាក់ 0 ដែរ)
+        $currentDate = $startDate->copy();
+        while ($currentDate <= $endDate) {
+            if ($groupBy === 'month') {
+                $key = $currentDate->format('Y-m'); // ប្រើសម្រាប់ Match ជាមួយ Database
+                $labels[] = $currentDate->format('M'); // លោតជាអក្សរ Jan, Feb... នៅលើ Chart
+                $currentDate->addMonth();
+            } else {
+                $key = $currentDate->format('Y-m-d');
+                $labels[] = $currentDate->format('d M'); // លោតជាអក្សរ 15 May... នៅលើ Chart
+                $currentDate->addDay();
+            }
+
+            // ឆែកមើលថាតើ Key នេះមានទិន្នន័យក្នុង DB ដែរឬទេ?
+            $stat = $stats->get($key);
+            $revenue[] = $stat ? (float) $stat->revenue : 0;
+            $orders[] = $stat ? (int) $stat->orders_count : 0;
+        }
+
+        $chartData = [
+            'labels'  => $labels,
+            'revenue' => $revenue,
+            'orders'  => $orders
+        ];
+
+        // ==========================================
+        // ៣. KPIs (Summary Cards) - អាចធ្វើតាម Filter ដែរ
+        // ==========================================
+        $summary = [
+            // កន្លែងនេះបើយើងចង់ឱ្យកាតស្ថិតិខាងលើលោតលេខតាម Filter ដែរ អាចប្រើ whereBetween បែបនេះ៖
+            'total_revenue'   => Order::whereBetween('created_at', [$startDate, $endDate])->where('payment_status', 'PAID')->sum('grand_total'),
+            'total_orders'    => Order::whereBetween('created_at', [$startDate, $endDate])->count(),
+            'active_customers' => User::where('role', 'customer')->count(), // Customer សរុបមិនបាច់ Filter ទេ
+            'pending_orders'  => Order::whereBetween('created_at', [$startDate, $endDate])->where('status', 'PENDING')->count(),
+            'total_products'  => Product::count(), // មិនបាច់ Filter
+        ];
+
+        // ==========================================
+        // ៤. Sales Activities & Alerts (រក្សាដូចដើម)
+        // ==========================================
         $recentOrdersRaw = Order::with('user')->latest()->take(4)->get();
-
         $recentOrders = $recentOrdersRaw->map(function ($order) {
             return [
-                // បំប្លែង ID ទៅជាទម្រង់ខ្លីងាយមើល បើកូដមាន length វែងពេក 
-                // ឬអាចប្រើ $order->order_number ក៏បានព្រោះលោកអ្នកមាន Field នេះ
-                'id'       => $order->order_number, // 🌟 ប្រើ order_number ដែលមានស្រាប់
-                'customer' => $order->user ? $order->user->name : $order->shipping_name, // 🌟 បើគ្មាន user យកឈ្មោះ shipping
-                'total'    => $order->grand_total, // 🌟 កែមកប្រើ grand_total
+                'id'       => $order->order_number,
+                'customer' => $order->user ? $order->user->name : $order->shipping_name,
+                'total'    => $order->grand_total,
                 'status'   => strtoupper($order->status),
                 'date'     => $order->created_at->diffForHumans(),
             ];
         });
 
-        // ទាញយកទំនិញលក់ដាច់ជាងគេ ៤ មុខ
         $topSellingProducts = Product::withSum('orderItems', 'quantity')
             ->with('thumbnail')
             ->having('order_items_sum_quantity', '>', 0)
@@ -94,10 +151,6 @@ class DashboardController extends Controller
             'recent_orders'        => $recentOrders,
             'top_selling_products' => $topSellingProducts
         ];
-
-        // ==========================================
-        // ៤. Secondary Info (Stock Alerts & Recent Customers)
-        // ==========================================
 
         $stockSubquery = ProductStockMovement::selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0)")
             ->whereColumn('product_stock_movements.product_id', 'products.id');
@@ -133,7 +186,8 @@ class DashboardController extends Controller
                 'chart_data'       => $chartData,
                 'sales_activities' => $salesActivities,
                 'alerts'           => $alerts,
-                'recent_customers' => $recentCustomers
+                'recent_customers' => $recentCustomers,
+                'current_range'    => $range // បោះ Parameter ត្រឡប់ទៅប្រាប់ Frontend វិញថាវាកំពុងបង្ហាញទិន្នន័យអ្វី
             ]
         ]);
     }
