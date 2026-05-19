@@ -52,7 +52,7 @@ Route::get('check-warranty', [PublicWarrantyController::class, 'check']);
 Route::get('/home', [HomeController::class, 'index']);
 
 // Contact Us
-Route::post('/contacts', [CustomerContactController::class, 'store']); 
+Route::post('/contacts', [CustomerContactController::class, 'store']);
 
 // =============================================================
 // 2. PROTECTED ROUTES (Logged-in Users)
@@ -98,9 +98,9 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
     });
 
     Route::prefix('notifications')->group(function () {
-        Route::get('/', [ NotificationController::class, 'index']);
-        Route::patch('/{id}/read', [ NotificationController::class, 'markAsRead']);
-        Route::post('/read-all', [ NotificationController::class, 'markAllAsRead']);
+        Route::get('/', [NotificationController::class, 'index']);
+        Route::patch('/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::post('/read-all', [NotificationController::class, 'markAllAsRead']);
     });
 
 
@@ -228,6 +228,10 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
             Route::put('/{id}/payment-status', [OrderController::class, 'updatePaymentStatus']);
         });
+        // Manual Order
+        Route::get('/products/search', [OrderController::class, 'searchProducts']);
+        Route::get('/users/search', [OrderController::class, 'searchUsers']);
+        Route::post('/orders/manual', [OrderController::class, 'storeManualOrder']);
 
         Route::prefix('notifications')->group(function () {
             Route::get('/', [NotificationController::class, 'index']);
