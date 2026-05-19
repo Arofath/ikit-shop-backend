@@ -41,13 +41,15 @@ class DashboardController extends Controller
         // ==========================================
         if ($groupBy === 'month') {
             $selectRaw = [
-                DB::raw('SUM(grand_total) as revenue'),
+                // 🌟 បូកតែលុយណាដែលបង់រួច (PAID)
+                DB::raw('SUM(CASE WHEN payment_status = "PAID" THEN grand_total ELSE 0 END) as revenue'),
+                // 🌟 រាប់ចំនួន Order ទាំងអស់ (មិនថា PAID ឬ PENDING)
                 DB::raw('COUNT(id) as orders_count'),
                 DB::raw('DATE_FORMAT(created_at, "%Y-%m") as group_key')
             ];
         } else {
             $selectRaw = [
-                DB::raw('SUM(grand_total) as revenue'),
+                DB::raw('SUM(CASE WHEN payment_status = "PAID" THEN grand_total ELSE 0 END) as revenue'),
                 DB::raw('COUNT(id) as orders_count'),
                 DB::raw('DATE(created_at) as group_key')
             ];
@@ -55,7 +57,7 @@ class DashboardController extends Controller
 
         $stats = Order::select($selectRaw)
             ->whereBetween('created_at', [$chartStart, $chartEnd])
-            ->where('payment_status', 'PAID')
+            // 🌟 ដក ->where('payment_status', 'PAID') ចេញពីទីនេះ ដើម្បីកុំឱ្យវា Block មិនឱ្យរាប់ Order ដែល PENDING
             ->groupBy('group_key')
             ->get()
             ->keyBy('group_key');
