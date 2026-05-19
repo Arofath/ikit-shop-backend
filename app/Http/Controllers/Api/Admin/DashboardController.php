@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Product;
 use App\Models\ProductStockMovement;
-use App\Models\Order; // 🌟 ទាញយក Model Order
-use App\Models\User;  // 🌟 ទាញយក Model User
+use App\Models\Order;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -19,16 +19,13 @@ class DashboardController extends Controller
         // ១. KPIs (Summary Cards) - Real Data
         // ==========================================
         $summary = [
-            // សរុបចំណូលពី Order ដែលបានបង់ប្រាក់រួច (PAID/COMPLETED)
-            'total_revenue'   => Order::whereIn('status', ['PAID', 'COMPLETED'])->sum('total_amount'),
+            // 🌟 កែមកប្រើ grand_total និងឆែកមើល payment_status = PAID សម្រាប់ចំណូល
+            'total_revenue'   => Order::where('payment_status', 'PAID')->sum('grand_total'),
 
-            // សរុបចំនួន Order ទាំងអស់
             'total_orders'    => Order::count(),
 
-            // សរុបអតិថិជន (សន្មតថា user ដែលមាន role = 'customer' ឬ 'user')
             'active_customers' => User::where('role', 'customer')->count(),
 
-            // Order ដែលកំពុងរង់ចាំ (PENDING)
             'pending_orders'  => Order::where('status', 'PENDING')->count(),
 
             'total_products'  => Product::count(),
@@ -41,7 +38,7 @@ class DashboardController extends Controller
 
         // ទាញទិន្នន័យ Group តាមខែ
         $monthlyStats = Order::select(
-            DB::raw('SUM(total_amount) as revenue'),
+            DB::raw('SUM(grand_total) as revenue'), // 🌟 កែមកប្រើ grand_total
             DB::raw('COUNT(id) as orders_count'),
             DB::raw('MONTH(created_at) as month_num'),
             DB::raw('DATE_FORMAT(created_at, "%b") as month_name')
@@ -57,7 +54,6 @@ class DashboardController extends Controller
             'orders'  => []
         ];
 
-        // បញ្ចូលទិន្នន័យទៅក្នុង Array សម្រាប់ Chart
         foreach ($monthlyStats as $stat) {
             $chartData['labels'][]  = $stat->month_name;
             $chartData['revenue'][] = (float) $stat->revenue;
@@ -68,21 +64,21 @@ class DashboardController extends Controller
         // ៣. Sales Activities (Recent Orders & Top Selling)
         // ==========================================
 
-        // ទាញយក Order ថ្មីៗបំផុតចំនួន ៤ (ត្រូវមាន relationship 'user' ឬ 'customer' ក្នុង Order Model)
         $recentOrdersRaw = Order::with('user')->latest()->take(4)->get();
 
         $recentOrders = $recentOrdersRaw->map(function ($order) {
             return [
-                'id'       => '#ORD-' . str_pad($order->id, 4, '0', STR_PAD_LEFT),
-                'customer' => $order->user ? $order->user->name : 'Guest',
-                'total'    => $order->total_amount,
+                // បំប្លែង ID ទៅជាទម្រង់ខ្លីងាយមើល បើកូដមាន length វែងពេក 
+                // ឬអាចប្រើ $order->order_number ក៏បានព្រោះលោកអ្នកមាន Field នេះ
+                'id'       => $order->order_number, // 🌟 ប្រើ order_number ដែលមានស្រាប់
+                'customer' => $order->user ? $order->user->name : $order->shipping_name, // 🌟 បើគ្មាន user យកឈ្មោះ shipping
+                'total'    => $order->grand_total, // 🌟 កែមកប្រើ grand_total
                 'status'   => strtoupper($order->status),
-                'date'     => $order->created_at->diffForHumans(), // លោតជា 2 mins ago...
+                'date'     => $order->created_at->diffForHumans(),
             ];
         });
 
         // ទាញយកទំនិញលក់ដាច់ជាងគេ ៤ មុខ
-        // 💡 ចំណាំ៖ តម្រូវឱ្យមាន Relationship `orderItems()` នៅក្នុង Product Model របស់អ្នក
         $topSellingProducts = Product::withSum('orderItems', 'quantity')
             ->with('thumbnail')
             ->having('order_items_sum_quantity', '>', 0)
@@ -90,7 +86,7 @@ class DashboardController extends Controller
             ->take(4)
             ->get()
             ->map(function ($product) {
-                $product->sold_qty = $product->order_items_sum_quantity; // យកតម្លៃពិតមកដាក់
+                $product->sold_qty = $product->order_items_sum_quantity;
                 return $product;
             });
 
@@ -103,7 +99,6 @@ class DashboardController extends Controller
         // ៤. Secondary Info (Stock Alerts & Recent Customers)
         // ==========================================
 
-        // Stock Alerts (រក្សាទុកកូដចាស់របស់អ្នកព្រោះវាដើរត្រូវហើយ)
         $stockSubquery = ProductStockMovement::selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0)")
             ->whereColumn('product_stock_movements.product_id', 'products.id');
 
@@ -118,7 +113,6 @@ class DashboardController extends Controller
             'out_of_stock' => $productsWithStock->where('current_stock', '<=', 0)->take(4)->values(),
         ];
 
-        // ទាញយកអតិថិជនថ្មីៗ ៣ នាក់ចុងក្រោយ
         $recentCustomersRaw = User::where('role', 'customer')->latest()->take(3)->get();
         $recentCustomers = $recentCustomersRaw->map(function ($user) {
             return [
