@@ -16,89 +16,66 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         // ==========================================
-        // ១. ចាប់យក Filter Parameter ពី Request
+        // ១. ចាប់យក Filter Parameters ទាំង ២ ដាច់ពីគ្នា
         // ==========================================
-        // បើគ្មានគេបញ្ជូនមកទេ យើងយក 'last_6_months' ជា Default
-        $range = $request->query('range', 'last_6_months');
+        $cardRange = $request->query('card_range', 'this_month'); // Default សម្រាប់ Card គឺ 'this_month'
+        $chartRange = $request->query('chart_range', 'last_6_months'); // Default សម្រាប់ Chart គឺ 'last_6_months'
 
-        $startDate = Carbon::now();
-        $endDate = Carbon::now();
-        $groupBy = 'month'; // ជម្រើសគឺ 'month' ឬ 'day'
-
-        // កំណត់ថ្ងៃចាប់ផ្តើម និងថ្ងៃបញ្ចប់ ទៅតាមប្រភេទ Filter
-        switch ($range) {
-            case 'last_7_days':
-                $startDate = Carbon::now()->subDays(6)->startOfDay(); // រាប់បញ្ច្រាស ៦ថ្ងៃ + ថ្ងៃនេះ = ៧ថ្ងៃ
-                $endDate = Carbon::now()->endOfDay();
-                $groupBy = 'day';
-                break;
-            case 'this_month':
-                $startDate = Carbon::now()->startOfMonth();
-                $endDate = Carbon::now()->endOfDay();
-                $groupBy = 'day';
-                break;
-            case 'last_month':
-                $startDate = Carbon::now()->subMonth()->startOfMonth();
-                $endDate = Carbon::now()->subMonth()->endOfMonth();
-                $groupBy = 'day';
-                break;
-            case 'this_year':
-                $startDate = Carbon::now()->startOfYear();
-                $endDate = Carbon::now()->endOfDay();
-                $groupBy = 'month';
-                break;
-            case 'last_6_months':
-            default:
-                $startDate = Carbon::now()->subMonths(5)->startOfMonth();
-                $endDate = Carbon::now()->endOfDay();
-                $groupBy = 'month';
-                break;
-        }
+        // ទាញយកថ្ងៃចាប់ផ្តើម និងថ្ងៃបញ្ចប់ ពីអនុគមន៍ដែលយើងបានបង្កើតនៅខាងក្រោម
+        [$cardStart, $cardEnd] = $this->getDatesFromRange($cardRange);
+        [$chartStart, $chartEnd, $groupBy] = $this->getDatesFromRange($chartRange);
 
         // ==========================================
-        // ២. Query ទិន្នន័យ Chart តាមថ្ងៃ ឬ ខែ
+        // ២. KPIs (Summary Cards) - គិតលេខតាម $cardRange
         // ==========================================
-        // កំណត់ទម្រង់ Group ក្នុង SQL ឱ្យត្រូវតាមលក្ខខណ្ឌ
+        $summary = [
+            'total_revenue'   => Order::whereBetween('created_at', [$cardStart, $cardEnd])->where('payment_status', 'PAID')->sum('grand_total'),
+            'total_orders'    => Order::whereBetween('created_at', [$cardStart, $cardEnd])->count(),
+            'active_customers' => User::where('role', 'customer')->count(), // Customer មិនបាច់ Filter ទេ
+            'pending_orders'  => Order::whereBetween('created_at', [$cardStart, $cardEnd])->where('status', 'PENDING')->count(),
+            'total_products'  => Product::count(), // Product មិនបាច់ Filter ទេ
+        ];
+
+        // ==========================================
+        // ៣. Chart Data (Revenue & Orders) - គិតលេខតាម $chartRange
+        // ==========================================
         if ($groupBy === 'month') {
             $selectRaw = [
                 DB::raw('SUM(grand_total) as revenue'),
                 DB::raw('COUNT(id) as orders_count'),
-                DB::raw('DATE_FORMAT(created_at, "%Y-%m") as group_key') // ឧ. 2024-05
+                DB::raw('DATE_FORMAT(created_at, "%Y-%m") as group_key')
             ];
         } else {
             $selectRaw = [
                 DB::raw('SUM(grand_total) as revenue'),
                 DB::raw('COUNT(id) as orders_count'),
-                DB::raw('DATE(created_at) as group_key') // ឧ. 2024-05-15
+                DB::raw('DATE(created_at) as group_key')
             ];
         }
 
-        // ទាញយក និងចងក្រង (Group) ទិន្នន័យ
         $stats = Order::select($selectRaw)
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->where('payment_status', 'PAID') // រាប់តែ Order ដែលបានបង់ប្រាក់រួច
+            ->whereBetween('created_at', [$chartStart, $chartEnd])
+            ->where('payment_status', 'PAID')
             ->groupBy('group_key')
             ->get()
-            ->keyBy('group_key'); // ធ្វើឱ្យងាយស្រួលទាញយកតាម Key
+            ->keyBy('group_key');
 
         $labels = [];
         $revenue = [];
         $orders = [];
 
-        // 🌟 Loop បង្កើត Labels និងបញ្ចូលទិន្នន័យ (ទោះខែ/ថ្ងៃនោះអត់លក់ដាច់ក៏ដោយ ក៏ដាក់ 0 ដែរ)
-        $currentDate = $startDate->copy();
-        while ($currentDate <= $endDate) {
+        $currentDate = $chartStart->copy();
+        while ($currentDate <= $chartEnd) {
             if ($groupBy === 'month') {
-                $key = $currentDate->format('Y-m'); // ប្រើសម្រាប់ Match ជាមួយ Database
-                $labels[] = $currentDate->format('M'); // លោតជាអក្សរ Jan, Feb... នៅលើ Chart
+                $key = $currentDate->format('Y-m');
+                $labels[] = $currentDate->format('M Y'); // ឧ. May 2024
                 $currentDate->addMonth();
             } else {
                 $key = $currentDate->format('Y-m-d');
-                $labels[] = $currentDate->format('d M'); // លោតជាអក្សរ 15 May... នៅលើ Chart
+                $labels[] = $currentDate->format('d M'); // ឧ. 15 May
                 $currentDate->addDay();
             }
 
-            // ឆែកមើលថាតើ Key នេះមានទិន្នន័យក្នុង DB ដែរឬទេ?
             $stat = $stats->get($key);
             $revenue[] = $stat ? (float) $stat->revenue : 0;
             $orders[] = $stat ? (int) $stat->orders_count : 0;
@@ -111,19 +88,7 @@ class DashboardController extends Controller
         ];
 
         // ==========================================
-        // ៣. KPIs (Summary Cards) - អាចធ្វើតាម Filter ដែរ
-        // ==========================================
-        $summary = [
-            // កន្លែងនេះបើយើងចង់ឱ្យកាតស្ថិតិខាងលើលោតលេខតាម Filter ដែរ អាចប្រើ whereBetween បែបនេះ៖
-            'total_revenue'   => Order::whereBetween('created_at', [$startDate, $endDate])->where('payment_status', 'PAID')->sum('grand_total'),
-            'total_orders'    => Order::whereBetween('created_at', [$startDate, $endDate])->count(),
-            'active_customers' => User::where('role', 'customer')->count(), // Customer សរុបមិនបាច់ Filter ទេ
-            'pending_orders'  => Order::whereBetween('created_at', [$startDate, $endDate])->where('status', 'PENDING')->count(),
-            'total_products'  => Product::count(), // មិនបាច់ Filter
-        ];
-
-        // ==========================================
-        // ៤. Sales Activities & Alerts (រក្សាដូចដើម)
+        // ៤. Sales Activities & Alerts (រក្សាទុកដដែល)
         // ==========================================
         $recentOrdersRaw = Order::with('user')->latest()->take(4)->get();
         $recentOrders = $recentOrdersRaw->map(function ($order) {
@@ -176,7 +141,7 @@ class DashboardController extends Controller
         });
 
         // ==========================================
-        // ៥. ផ្គុំទិន្នន័យបញ្ជូនទៅ Frontend
+        // ៥. បញ្ជូនទិន្នន័យទៅ Frontend
         // ==========================================
         return response()->json([
             'success' => true,
@@ -187,8 +152,37 @@ class DashboardController extends Controller
                 'sales_activities' => $salesActivities,
                 'alerts'           => $alerts,
                 'recent_customers' => $recentCustomers,
-                'current_range'    => $range // បោះ Parameter ត្រឡប់ទៅប្រាប់ Frontend វិញថាវាកំពុងបង្ហាញទិន្នន័យអ្វី
+                'current_filters'  => [
+                    'card_range'  => $cardRange,
+                    'chart_range' => $chartRange
+                ]
             ]
         ]);
+    }
+
+    /**
+     * អនុគមន៍ជំនួយ (Helper) សម្រាប់គណនាថ្ងៃខែ ផ្អែកតាម Range
+     */
+    private function getDatesFromRange($range)
+    {
+        $now = Carbon::now();
+
+        switch ($range) {
+            case 'today':
+                return [$now->copy()->startOfDay(), $now->copy()->endOfDay(), 'day'];
+            case 'yesterday':
+                return [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay(), 'day'];
+            case 'last_7_days':
+                return [$now->copy()->subDays(6)->startOfDay(), $now->copy()->endOfDay(), 'day'];
+            case 'last_month':
+                return [$now->copy()->subMonth()->startOfMonth(), $now->copy()->subMonth()->endOfMonth(), 'day'];
+            case 'this_year':
+                return [$now->copy()->startOfYear(), $now->copy()->endOfDay(), 'month'];
+            case 'last_6_months':
+                return [$now->copy()->subMonths(5)->startOfMonth(), $now->copy()->endOfDay(), 'month'];
+            case 'this_month':
+            default:
+                return [$now->copy()->startOfMonth(), $now->copy()->endOfDay(), 'day'];
+        }
     }
 }
