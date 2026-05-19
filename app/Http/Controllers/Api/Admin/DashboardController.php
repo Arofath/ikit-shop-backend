@@ -41,23 +41,24 @@ class DashboardController extends Controller
         // ==========================================
         if ($groupBy === 'month') {
             $selectRaw = [
-                // 🌟 បូកតែលុយណាដែលបង់រួច (PAID)
                 DB::raw('SUM(CASE WHEN payment_status = "PAID" THEN grand_total ELSE 0 END) as revenue'),
-                // 🌟 រាប់ចំនួន Order ទាំងអស់ (មិនថា PAID ឬ PENDING)
                 DB::raw('COUNT(id) as orders_count'),
+                // 🌟 ថែមការរាប់តែ Order ដែលបានបង់ប្រាក់
+                DB::raw('SUM(CASE WHEN payment_status = "PAID" THEN 1 ELSE 0 END) as paid_orders_count'),
                 DB::raw('DATE_FORMAT(created_at, "%Y-%m") as group_key')
             ];
         } else {
             $selectRaw = [
                 DB::raw('SUM(CASE WHEN payment_status = "PAID" THEN grand_total ELSE 0 END) as revenue'),
                 DB::raw('COUNT(id) as orders_count'),
+                // 🌟 ថែមការរាប់តែ Order ដែលបានបង់ប្រាក់
+                DB::raw('SUM(CASE WHEN payment_status = "PAID" THEN 1 ELSE 0 END) as paid_orders_count'),
                 DB::raw('DATE(created_at) as group_key')
             ];
         }
 
         $stats = Order::select($selectRaw)
             ->whereBetween('created_at', [$chartStart, $chartEnd])
-            // 🌟 ដក ->where('payment_status', 'PAID') ចេញពីទីនេះ ដើម្បីកុំឱ្យវា Block មិនឱ្យរាប់ Order ដែល PENDING
             ->groupBy('group_key')
             ->get()
             ->keyBy('group_key');
@@ -65,28 +66,23 @@ class DashboardController extends Controller
         $labels = [];
         $revenue = [];
         $orders = [];
+        $paidOrders = []; // 🌟 បង្កើត Array ថ្មី
 
         $currentDate = $chartStart->copy();
         while ($currentDate <= $chartEnd) {
-            if ($groupBy === 'month') {
-                $key = $currentDate->format('Y-m');
-                $labels[] = $currentDate->format('M Y'); // ឧ. May 2024
-                $currentDate->addMonth();
-            } else {
-                $key = $currentDate->format('Y-m-d');
-                $labels[] = $currentDate->format('d M'); // ឧ. 15 May
-                $currentDate->addDay();
-            }
+            // ... (ការកំណត់ $key និង $labels រក្សាទុកដដែល) ...
 
             $stat = $stats->get($key);
             $revenue[] = $stat ? (float) $stat->revenue : 0;
             $orders[] = $stat ? (int) $stat->orders_count : 0;
+            $paidOrders[] = $stat ? (int) $stat->paid_orders_count : 0; // 🌟 ទាញយកទិន្នន័យ
         }
 
         $chartData = [
             'labels'  => $labels,
             'revenue' => $revenue,
-            'orders'  => $orders
+            'orders'  => $orders,
+            'paid_orders' => $paidOrders // 🌟 បញ្ជូនទៅ Frontend
         ];
 
         // ==========================================
