@@ -3,16 +3,17 @@
 use App\Http\Controllers\Api\AddressController;
 use App\Http\Controllers\Api\Admin\{UserManagementController, CategoryController, BrandController, ProductController, ProductImageController, ProductSpecController, ProductStockMovementController, SlideshowController, SupplierController, WarrantyController, ProductSerialController, SettingController};
 use App\Http\Controllers\Api\Admin\AIGeneratorController;
+use App\Http\Controllers\Api\Admin\ContactController as AdminContactController;
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\OrderController;
-use App\Http\Controllers\Api\Admin\ContactController as AdminContactController;
+use App\Http\Controllers\Api\Admin\PosController;
 use App\Http\Controllers\Api\Admin\SystemController;
 use App\Http\Controllers\Api\Auth\GoogleAuthController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
+use App\Http\Controllers\Api\ContactController as CustomerContactController;
 use App\Http\Controllers\Api\FavoriteController;
 use App\Http\Controllers\Api\HomeController;
-use App\Http\Controllers\Api\ContactController as CustomerContactController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrderController as PublicOrderController;
 use App\Http\Controllers\Api\PublicWarrantyController;
@@ -228,10 +229,12 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
             Route::put('/{id}/payment-status', [OrderController::class, 'updatePaymentStatus']);
         });
-        // Manual Order
-        Route::get('/products/search', [OrderController::class, 'searchProducts']);
-        Route::get('/users/search', [OrderController::class, 'searchUsers']);
-        Route::post('/orders/manual', [OrderController::class, 'storeManualOrder']);
+
+        Route::get('/pos/categories', [PosController::class, 'getCategories']);
+        Route::get('/pos/brands', [PosController::class, 'getBrands']);
+        Route::get('/pos/products/search', [PosController::class, 'searchProducts']);
+        Route::get('/pos/users/search', [PosController::class, 'searchUsers']);
+        Route::post('/pos/orders', [PosController::class, 'storeOrder']);
 
         Route::prefix('notifications')->group(function () {
             Route::get('/', [NotificationController::class, 'index']);
