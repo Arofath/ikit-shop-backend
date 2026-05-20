@@ -122,19 +122,18 @@ class PosController extends Controller
      */
     public function storeOrder(Request $request)
     {
+        // 🌟 ១. Validation លក្ខខណ្ឌតឹងរ៉ឹង
         $request->validate([
-            'user_id' => 'nullable|exists:users,id',
-            'shipping_name' => 'required_without:user_id|string|max:255',
-            'shipping_phone' => 'nullable|string|max:20',
+            'user_id'          => 'nullable|exists:users,id',
+            'shipping_name'    => 'required_without:user_id|string|max:255',
+            'shipping_phone'   => 'nullable|string|max:20',
+            'city'             => 'nullable|string|max:255',
             'shipping_address' => 'nullable|string',
-            'subtotal' => 'required|numeric|min:0',
-            'discount' => 'nullable|numeric|min:0',
-            'shipping_fee' => 'nullable|numeric|min:0',
-            'grand_total' => 'required|numeric|min:0',
-            'payment_method' => 'required|string',
-            'payment_status' => 'required|in:UNPAID,PAID',
-            'status' => 'required|in:PENDING,PROCESSING,COMPLETED,CANCELLED',
-            'items' => 'required|array|min:1',
+            'discount'         => 'nullable|numeric|min:0',
+            'shipping_fee'     => 'nullable|numeric|min:0', // សម្រាប់ករណី Admin ចង់វាយបញ្ចូលដោយដៃ
+            'payment_method'   => 'required|string',
+            'payment_status'   => 'required|in:UNPAID,PAID',
+            'items'            => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
@@ -145,29 +144,38 @@ class PosController extends Controller
 
             $orderNumber = 'ORD-' . now()->format('Ymd') . '-' . strtoupper(Str::random(5));
 
+            // កំណត់ឈ្មោះអតិថិជន
             $customerName = $request->shipping_name;
             if ($request->user_id && !$customerName) {
                 $user = User::find($request->user_id);
                 $customerName = $user->name;
             }
 
-            $order = Order::create([
-                'order_number' => $orderNumber,
-                'user_id' => $request->user_id,
-                'shipping_name' => $customerName,
-                'shipping_phone' => $request->shipping_phone,
-                'shipping_address' => $request->shipping_address,
-                'subtotal' => $request->subtotal,
-                'discount' => $request->discount ?? 0,
-                'shipping_fee' => $request->shipping_fee ?? 0,
-                'grand_total' => $request->grand_total,
-                'payment_method' => $request->payment_method,
-                'payment_status' => $request->payment_status,
-                'status' => $request->status,
-                'notes' => 'Created via POS',
-            ]);
+            // 🌟 ២. កំណត់លក្ខខណ្ឌ Walk-in vs Social Order
+            $isWalkIn = empty($request->shipping_address) && empty($request->city);
+
+            // 🌟 ៣. គណនាថ្លៃដឹកជញ្ជូន
+            $shippingFee = 0;
+            if ($isWalkIn) {
+                // បើ Walk-in មិនគិតថ្លៃដឹក
+                $shippingFee = 0;
+            } else {
+                // បើ Social Order (មានអាសយដ្ឋាន/ខេត្ត)
+                if (!empty($request->city)) {
+                    // បើមានរើសខេត្ត គណនាស្វ័យប្រវត្តិ
+                    $shippingFee = $this->calculateShippingFee($request->city);
+                } else {
+                    // បើអត់រើសខេត្ត តែ Admin បញ្ចូលដោយដៃ
+                    $shippingFee = $request->shipping_fee ?? 0;
+                }
+            }
+
+            // 🌟 ៤. គណនាលុយទំនិញសរុប (Subtotal Re-calculation)
+            $subtotal = 0;
+            $orderItemsData = [];
 
             foreach ($request->items as $item) {
+                // ឆែកស្តុក
                 $currentStock = ProductStockMovement::where('product_id', $item['product_id'])
                     ->selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0) as total")
                     ->value('total');
@@ -176,23 +184,72 @@ class PosController extends Controller
                     throw new \Exception("Product ID {$item['product_id']} does not have enough stock.");
                 }
 
-                OrderItem::create([
-                    'order_id' => $order->id,
-                    'product_id' => $item['product_id'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                    'subtotal' => $item['quantity'] * $item['unit_price'],
-                ]);
+                $itemSubtotal = $item['quantity'] * $item['unit_price'];
+                $subtotal += $itemSubtotal;
 
+                $orderItemsData[] = [
+                    'product_id' => $item['product_id'],
+                    'quantity'   => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                    'subtotal'   => $itemSubtotal,
+                ];
+
+                // កាត់ស្តុក (Stock Move)
                 ProductStockMovement::create([
                     'product_id' => $item['product_id'],
-                    'type' => 'OUT',
-                    'quantity' => $item['quantity'],
+                    'type'       => 'OUT',
+                    'quantity'   => $item['quantity'],
                     'reference_type' => 'ORDER',
-                    'reference_id' => $order->id,
-                    'notes' => 'POS Order: ' . $orderNumber,
+                    'reference_id'   => null, // នឹងត្រូវ Update ពេលមាន Order ID
+                    'notes'          => 'POS Order: ' . $orderNumber,
                 ]);
             }
+
+            // 🌟 ៥. គណនា Grand Total
+            $discount = $request->discount ?? 0;
+            $grandTotal = ($subtotal - $discount) + $shippingFee;
+            if ($grandTotal < 0) $grandTotal = 0;
+
+            // 🌟 ៦. កំណត់ Status ឆ្លាតវៃ
+            $orderStatus = 'PENDING';
+            if ($isWalkIn && $request->payment_status === 'PAID') {
+                $orderStatus = 'COMPLETED';
+            }
+
+            // 🌟 ៧. បង្កើត Order មេ
+            $order = Order::create([
+                'order_number'     => $orderNumber,
+                'user_id'          => $request->user_id,
+                'shipping_name'    => $customerName,
+                'shipping_phone'   => $request->shipping_phone,
+                'city'             => $request->city,
+                'shipping_address' => $request->shipping_address,
+                'subtotal'         => $subtotal,
+                'discount'         => $discount,
+                'shipping_fee'     => $shippingFee,
+                'grand_total'      => $grandTotal,
+                'payment_method'   => $request->payment_method,
+                'payment_status'   => $request->payment_status,
+                'status'           => $orderStatus,
+                'notes'            => $isWalkIn ? 'POS Walk-in Order' : 'POS Social Order',
+            ]);
+
+            // បញ្ចូល Order ID ទៅក្នុង OrderItems ដែលបានរៀបចំ
+            foreach ($orderItemsData as &$itemData) {
+                $itemData['order_id'] = $order->id;
+            }
+            OrderItem::insert($orderItemsData); // ប្រើ insert ដើម្បីលឿន
+
+            // Update reference_id ក្នុង ProductStockMovement
+            ProductStockMovement::where('notes', 'POS Order: ' . $orderNumber)
+                ->update(['reference_id' => $order->id]);
+
+            // 🌟 ៨. បង្កើតកំណត់ត្រា Payment
+            $order->payment()->create([
+                'amount'         => $grandTotal,
+                'payment_method' => $request->payment_method,
+                'status'         => $request->payment_status,
+            ]);
 
             DB::commit();
 
@@ -208,5 +265,17 @@ class PosController extends Controller
                 'message' => 'Failed to create order: ' . $e->getMessage()
             ], 422);
         }
+    }
+
+    /**
+     * Helper Function: គណនាថ្លៃដឹកជញ្ជូនស្វ័យប្រវត្តិ
+     */
+    private function calculateShippingFee($city)
+    {
+        if (empty($city)) return 0;
+
+        $cityName = strtolower(trim($city));
+        // បើនៅភ្នំពេញ យក ២ ដុល្លារ, ខេត្តផ្សេង យក ២.៥ ដុល្លារ
+        return ($cityName === 'phnom penh') ? 2.00 : 2.50;
     }
 }
