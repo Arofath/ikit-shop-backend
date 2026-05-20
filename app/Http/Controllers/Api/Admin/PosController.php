@@ -66,40 +66,32 @@ class PosController extends Controller
         $stockSubquery = ProductStockMovement::selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0)")
             ->whereColumn('product_stock_movements.product_id', 'products.id');
 
-        $products = Product::select('id', 'name', 'sku', 'price', 'brand_id')
+        $products = Product::select('id', 'name', 'sku', 'price', 'brand_id', 'created_at')
             ->selectSub($stockSubquery, 'current_stock')
             ->active()
-
-            // ស្វែងរកតាមឈ្មោះ ឬ SKU
             ->when($search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'like', "%{$search}%")
                         ->orWhere('sku', 'like', "%{$search}%");
                 });
             })
-
-            // Filter តាម Category
             ->when($categoryId, function ($query, $categoryId) {
                 $query->whereHas('categories', function ($q) use ($categoryId) {
                     $q->where('categories.id', $categoryId);
                 });
             })
-
-            // Filter តាម Brand
             ->when($brandId, function ($query, $brandId) {
                 $query->where('brand_id', $brandId);
             })
-
             ->with('thumbnail')
-            ->take(20)
-            ->get();
+            ->latest() // 🌟 ១. តម្រៀបទំនិញថ្មីឱ្យនៅខាងលើគេ
+            ->paginate(20); // 🌟 ២. កាត់យកម្តង ២០ មុខ ជំនួសឱ្យពាក្យ take(20)->get()
 
         return response()->json([
             'success' => true,
             'data' => $products
         ]);
     }
-
     /**
      * ៤. API ស្វែងរកអតិថិជន
      */
