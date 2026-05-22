@@ -12,13 +12,13 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('order_number')->unique(); // ឧ. ORD-20260204-0001
 
-            $table->foreignUuid('user_id')->constrained('users');
+            $table->foreignUuid('user_id')->nullable()->constrained('users');
             $table->uuid('address_id')->nullable(); // គ្រាន់តែចំណាំថាគាត់រើសអាសយដ្ឋានមួយណា
 
             // 🌟 ថតចម្លង (Snapshot) ព័ត៌មានដឹកជញ្ជូន ការពារភ្ញៀវលុបអាសយដ្ឋានចាស់ចោល
             $table->string('shipping_name');
-            $table->string('shipping_phone');
-            $table->text('shipping_address');
+            $table->string('shipping_phone')->nullable();
+            $table->text('shipping_address')->nullable();
 
             // ផ្នែកហិរញ្ញវត្ថុ
             $table->decimal('subtotal', 12, 2);

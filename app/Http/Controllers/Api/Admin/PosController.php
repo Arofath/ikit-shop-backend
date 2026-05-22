@@ -235,10 +235,10 @@ class PosController extends Controller
             ]);
 
             // បញ្ចូល Order ID ទៅក្នុង OrderItems ដែលបានរៀបចំ
-            foreach ($orderItemsData as &$itemData) {
+            foreach ($orderItemsData as $itemData) {
                 $itemData['order_id'] = $order->id;
+                OrderItem::create($itemData);
             }
-            OrderItem::insert($orderItemsData); // ប្រើ insert ដើម្បីលឿន
 
             // Update reference_id ក្នុង ProductStockMovement
             ProductStockMovement::where('notes', 'POS Order: ' . $orderNumber)
