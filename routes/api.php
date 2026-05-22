@@ -36,6 +36,9 @@ Route::prefix('auth/google')->group(function () {
     Route::get('/callback', [GoogleAuthController::class, 'callback']);
 });
 
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+
 Route::prefix('products')->group(function () {
     Route::get('/suggestions', [ProductController::class, 'suggestions']);
     Route::get('/', [ProductController::class, 'storefrontIndex']);

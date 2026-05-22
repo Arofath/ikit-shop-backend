@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserResource;
 use App\Mail\AdminLoginOtpMail;
+use App\Mail\ForgotPasswordOtpMail;
 use App\Mail\RegisterOtpMail;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -11,7 +13,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
-use App\Http\Resources\UserResource;
 
 class AuthController extends Controller
 {
@@ -307,6 +308,69 @@ class AuthController extends Controller
         }
 
         return $this->sendError('Unauthenticated or no token found.', [], 401);
+    }
+
+    public function forgotPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        // 🌟 ទប់ស្កាត់គណនី Social Login (Google)
+        if (empty($user->password)) {
+            return $this->sendError(
+                'Your account is linked with Google. Please return to the login page and click "Continue with Google".',
+                ['is_social_login' => true],
+                400
+            );
+        }
+
+        return DB::transaction(function () use ($user) {
+
+            // ១. បង្កើត OTP ថ្មី ដោយប្រើ Helper Method ដែលមានស្រាប់
+            $otpCode = $this->generateAndSaveOtp($user, 'password_reset');
+
+            // ២. ផ្ញើ Email ទៅកាន់អតិថិជនតែម្តង (គ្មានការ Bypass ទៀតទេ)
+            Mail::to($user->email)->send(new ForgotPasswordOtpMail($otpCode));
+
+            $data = ['expires_in' => self::OTP_EXPIRY_TEXT];
+            return $this->sendResponse($data, 'Password reset OTP has been sent to your email.', 200);
+        });
+    }
+
+    public function resetPassword(Request $request)
+    {
+        // 🌟 ទាមទារទាំង OTP និង លេខសម្ងាត់ថ្មី
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+            'otp_code' => 'required|string|size:6',
+            'password' => 'required|string|min:8|confirmed', // ត្រូវមាន password_confirmation បោះមកពី Frontend
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        // 🌟 ផ្ទៀងផ្ទាត់ OTP ដោយហៅ Helper Method របស់អ្នក
+        $validation = $this->validateOtpProcess($user, $request->otp_code, 'password_reset');
+
+        // បើ OTP ខុស ហួសកំណត់ ឬវាយខុសលើស៥ដង វានឹង Return Error
+        if (!$validation['isValid']) {
+            return $this->sendError($validation['message'], [], $validation['status']);
+        }
+
+        return DB::transaction(function () use ($user, $validation, $request) {
+            // ក. កត់ចំណាំថា OTP នេះត្រូវបានប្រើប្រាស់រួចហើយ
+            $validation['otp']->update(['is_used' => true]);
+
+            // ខ. កំណត់លេខសម្ងាត់ថ្មីចូល Database ភ្លាមៗ
+            $user->update([
+                'password' => Hash::make($request->password)
+            ]);
+
+            // គ. បោះសារជោគជ័យ
+            return $this->sendResponse([], 'Your password has been successfully reset. You can now log in with your new password.', 200);
+        });
     }
 
     public function changePassword(Request $request)
