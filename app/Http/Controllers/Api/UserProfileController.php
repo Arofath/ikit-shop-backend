@@ -25,8 +25,12 @@ class UserProfileController extends Controller
     // Update user profile
     public function update(Request $request)
     {
+        $user = $request->user(); // ទាញយក User បច្ចុប្បន្ន
+
         $request->validate([
             'name'          => 'nullable|string|max:255',
+            // 🌟 អនុញ្ញាតឱ្យដូរលេខទូរស័ព្ទ តែត្រូវប្រាកដថាមិនជាន់ជាមួយលេខអ្នកផ្សេង (លើកលែងតែលេខខ្លួនឯង)
+            'phone_number'  => 'nullable|string|max:15|unique:users,phone_number,' . $user->id,
             'gender'        => 'nullable|in:male,female,other',
             'date_of_birth' => 'nullable|date',
             'address'       => 'nullable|string|max:500',
@@ -34,13 +38,26 @@ class UserProfileController extends Controller
             'bio'           => 'nullable|string|max:1000',
         ]);
 
-        $user = $request->user();
         $profile = $user->profile()->firstOrCreate([]);
 
         try {
             DB::transaction(function () use ($request, $user, $profile) {
+                // Update ទិន្នន័យក្នុងតារាង users (name និង phone_number)
+                $userDataToUpdate = [];
                 if ($request->filled('name')) {
-                    $user->update(['name' => $request->name]);
+                    $userDataToUpdate['name'] = $request->name;
+                }
+
+                // 🌟 អនុញ្ញាតឱ្យ Update លេខទូរស័ព្ទ (ពិសេសសម្រាប់អ្នកមកពី Google)
+                if ($request->filled('phone_number')) {
+                    // លក្ខខណ្ឌបន្ថែម៖ បើចង់បិទមិនឱ្យអ្នកដែលមានលេខហើយ ដូរលេខទៀត អាចថែម if នេះ៖
+                    // if (empty($user->phone_number)) { 
+                    $userDataToUpdate['phone_number'] = $request->phone_number;
+                    // }
+                }
+
+                if (!empty($userDataToUpdate)) {
+                    $user->update($userDataToUpdate);
                 }
 
                 // Update profile ជាមួយ field ទាំងអស់
