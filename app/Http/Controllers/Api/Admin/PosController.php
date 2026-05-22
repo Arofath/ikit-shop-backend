@@ -242,8 +242,8 @@ class PosController extends Controller
             }
 
             // Update reference_id ក្នុង ProductStockMovement
-            ProductStockMovement::where('notes', 'POS Order: ' . $orderNumber)
-                ->update(['reference_id' => $order->id]);
+            // ProductStockMovement::where('notes', 'POS Order: ' . $orderNumber)
+            //     ->update(['reference_id' => $order->id]);
 
             // 🌟 ៨. បង្កើតកំណត់ត្រា Payment
             $order->payment()->create([
