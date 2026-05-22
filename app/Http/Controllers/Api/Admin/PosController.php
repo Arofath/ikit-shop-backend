@@ -261,7 +261,7 @@ class PosController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Order created successfully.',
-                'data' => $order->load('orderItems.product')
+                'data' => $order->load('items.product')
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
