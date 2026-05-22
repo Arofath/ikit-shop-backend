@@ -196,12 +196,13 @@ class PosController extends Controller
 
                 // កាត់ស្តុក (Stock Move)
                 ProductStockMovement::create([
-                    'product_id' => $item['product_id'],
-                    'type'       => 'OUT',
-                    'quantity'   => $item['quantity'],
-                    'reference_type' => 'ORDER',
-                    'reference_id'   => null, // នឹងត្រូវ Update ពេលមាន Order ID
-                    'notes'          => 'POS Order: ' . $orderNumber,
+                    'product_id'       => $item['product_id'],
+                    'reference_number' => $orderNumber, // ភ្ជាប់វាទៅ Order តាមរយៈ Order Number
+                    'type'             => 'OUT',
+                    'quantity'         => $item['quantity'],
+                    'cost_price'       => 0,
+                    'balance_after'    => $currentStock - $item['quantity'],
+                    'note'             => 'POS Order: ' . $orderNumber, // ✅ ដូរពី notes មក note វិញ
                 ]);
             }
 
