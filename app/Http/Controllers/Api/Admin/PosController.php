@@ -246,12 +246,16 @@ class PosController extends Controller
             //     ->update(['reference_id' => $order->id]);
 
             // 🌟 ៨. បង្កើតកំណត់ត្រា Payment
+            $paymentRecordStatus = 'PENDING';
+            if ($request->payment_status === 'PAID') {
+                $paymentRecordStatus = 'COMPLETED';
+            }
+
             $order->payment()->create([
                 'amount'         => $grandTotal,
                 'payment_method' => $request->payment_method,
-                'status'         => $request->payment_status,
+                'status'         => $paymentRecordStatus,
             ]);
-
             DB::commit();
 
             return response()->json([
