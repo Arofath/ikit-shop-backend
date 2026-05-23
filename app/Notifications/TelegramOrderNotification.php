@@ -3,11 +3,10 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 use NotificationChannels\Telegram\TelegramMessage;
 
-class TelegramOrderNotification extends Notification implements ShouldQueue
+class TelegramOrderNotification extends Notification
 {
     use Queueable;
 
