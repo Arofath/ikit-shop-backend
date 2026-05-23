@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
+use App\Notifications\TelegramOrderNotification;
 
 class OrderController extends Controller
 {
@@ -72,6 +73,9 @@ class OrderController extends Controller
             if ($admins->isNotEmpty()) {
                 Notification::send($admins, new NewOrderNotification($order));
             }
+
+            Notification::route('telegram', env('TELEGRAM_CHAT_ID'))
+                ->notify(new TelegramOrderNotification($order));
 
             return response()->json([
                 'success' => true,

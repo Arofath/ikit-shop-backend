@@ -46,3 +46,5 @@ return new class extends Migration
         Schema::dropIfExists('orders');
     }
 };
+
+// $table->enum('order_source', ['STOREFRONT', 'POS', 'SOCIAL'])->default('STOREFRONT');
