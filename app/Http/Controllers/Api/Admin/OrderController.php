@@ -183,4 +183,35 @@ class OrderController extends Controller
         }
     }
 
+    /**
+     * ៤. មុខងារលុបវិក្កយបត្រ (Delete Order)
+     */
+    public function destroy($id)
+    {
+        $order = Order::findOrFail($id);
+
+        // ត្រួតពិនិត្យ៖ អនុញ្ញាតឱ្យលុបតែ Order ណាដែល CANCELLED ឬ COMPLETED ប៉ុណ្ណោះ
+        if (!in_array($order->status, ['CANCELLED', 'COMPLETED'])) {
+            return response()->json([
+                'success' => false,
+                'message' => "Cannot delete order. Only CANCELLED or COMPLETED orders can be deleted. Current status is {$order->status}."
+            ], 400);
+        }
+
+        try {
+            // ដោយសារ Table orders មានប្រើ softDeletes()
+            // វានឹងគ្រាន់តែ Update ជួរឈរ deleted_at មិនលុបទិន្នន័យចោលទាំងស្រុងពី Database ទេ
+            $order->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order successfully deleted.'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete order: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

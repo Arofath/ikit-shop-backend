@@ -229,6 +229,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::prefix('orders')->group(function () {
             Route::get('/', [OrderController::class, 'index']);
             Route::get('/{id}', [OrderController::class, 'show']);
+            Route::delete('/{id}', [OrderController::class, 'destroy']);
             Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
             Route::put('/{id}/payment-status', [OrderController::class, 'updatePaymentStatus']);
         });
