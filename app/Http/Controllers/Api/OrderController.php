@@ -69,6 +69,8 @@ class OrderController extends Controller
 
             DB::commit();
 
+            $order->load(['items', 'payment']);
+
             $admins = User::whereIn('role', ['admin', 'super_admin'])->get();
             if ($admins->isNotEmpty()) {
                 Notification::send($admins, new NewOrderNotification($order));

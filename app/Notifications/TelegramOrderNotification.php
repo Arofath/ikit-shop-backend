@@ -34,24 +34,51 @@ class TelegramOrderNotification extends Notification
     public function toTelegram($notifiable)
     {
         $adminOrderUrl = env('ADMIN_FRONTEND_URL', 'http://localhost:5173') . '/admin/orders/' . $this->order->id;
-        $paymentStatus = $this->order->payment_status === 'PAID' ? '✅ បានបង់ប្រាក់' : '⏳ រង់ចាំការបង់ប្រាក់';
 
+        // 🌟 ១. រៀបចំ Payment 
+        $paymentStatus = $this->order->payment_status === 'PAID' ? '✅ PAID' : '⏳ UNPAID';
+        $paymentMethod = str_replace('_', ' ', $this->order->payment_method); // ប្តូរ CASH_ON_DELIVERY ទៅ CASH ON DELIVERY
+
+        // 🌟 ២. រៀបចំបញ្ជីទំនិញ (Items Summary)
+        $itemsList = "";
+        if ($this->order->items && $this->order->items->count() > 0) {
+            foreach ($this->order->items as $item) {
+                // កាត់ឈ្មោះទំនិញកុំឱ្យវែងពេក (ត្រឹម 30 អក្សរ)
+                $productName = mb_strimwidth($item->product_name, 0, 30, '...');
+                $itemsList .= "• {$item->quantity}x {$productName} \n";
+            }
+        } else {
+            $itemsList = "• មិនមានព័ត៌មានទំនិញ\n";
+        }
+
+        // 🌟 ៣. ចាប់ផ្តើមសាងសង់សារ Telegram
         $telegramMessage = TelegramMessage::create()
             ->to(env('TELEGRAM_CHAT_ID'))
-            ->content("*🛒 មានការបញ្ជាទិញថ្មី (New Order)!*\n\n")
+            ->content("*🛒 មានការបញ្ជាទិញថ្មីពី វេបសាយ!*\n\n")
+
+            // ផ្នែកព័ត៌មានទូទៅ
             ->line("*លេខកូដ (Order ID):* `#" . $this->order->order_number . "`")
             ->line("*អតិថិជន (Customer):* " . ($this->order->shipping_name ?? 'Unknown'))
-            ->line("*លេខទូរស័ព្ទ (Phone):* " . ($this->order->shipping_phone ?? 'N/A'))
-            ->line("*ទឹកប្រាក់សរុប (Total):* `$" . number_format($this->order->total_amount, 2) . "`")
-            ->line("*ការបង់ប្រាក់ (Payment):* " . $paymentStatus);
+            ->line("*លេខទូរស័ព្ទ (Phone):* `" . ($this->order->shipping_phone ?? 'N/A') . "`")
+            ->line("*អាសយដ្ឋាន (Address):* " . ($this->order->shipping_address ?? 'N/A'))
+            ->line("")
 
-        // 🌟 ដោះស្រាយបញ្ហា Localhost
-        // បើ URL មានពាក្យ localhost យើងគ្រាន់តែបង្ហាញជាអក្សរធម្មតា
+            // ផ្នែកទំនិញ (លោតចុះបន្ទាត់ស្អាត)
+            ->line("*📦 ទំនិញដែលបានកម្ម៉ង់ (Items):*")
+            ->line($itemsList)
+            ->line("")
+
+            // ផ្នែកហិរញ្ញវត្ថុ
+            ->line("*វិធីបង់ប្រាក់:* " . $paymentMethod)
+            ->line("*សេវាដឹកជញ្ជូន:* `$" . number_format($this->order->shipping_fee, 2) . "`")
+            ->line("*សរុបទាំងអស់ (Grand Total):* `$" . number_format($this->order->grand_total, 2) . "`")
+            ->line("*ស្ថានភាព (Status):* " . $paymentStatus);
+
+        // 🌟 ៤. ដោះស្រាយបញ្ហា URL សម្រាប់ប៊ូតុង
         if (str_contains($adminOrderUrl, 'localhost')) {
             $telegramMessage->line("\n🔗 *Link សម្រាប់ Admin:* \n`" . $adminOrderUrl . "`");
         } else {
-            // បើវាជា Domain ពិតប្រាកដនៅលើ Hosting ទើបយើងបង្ហាញជាប៊ូតុង
-            $telegramMessage->button('👉 មើលព័ត៌មានលម្អិត (View Details)', $adminOrderUrl);
+            $telegramMessage->button('👉 ចុចទីនេះដើម្បីចាត់ចែង (View Order)', $adminOrderUrl);
         }
 
         return $telegramMessage;
