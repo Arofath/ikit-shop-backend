@@ -41,3 +41,4 @@ class CreateSuperAdmin extends Command
 }
 
 // php artisan account:create-super-admin slesrofath2203@gmail.com
+// php artisan account:create-super-admin layhai777@gmail.com
