@@ -232,6 +232,8 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::delete('/{id}', [OrderController::class, 'destroy']);
             Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
             Route::put('/{id}/payment-status', [OrderController::class, 'updatePaymentStatus']);
+            Route::post('/{id}/fulfill-serials', [OrderController::class, 'fulfillOrderSerials']);
+
         });
 
         Route::get('/pos/categories', [PosController::class, 'getCategories']);

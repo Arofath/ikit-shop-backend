@@ -19,7 +19,6 @@ class Address extends Model
         'is_default',
     ];
 
-    // Address នេះជារបស់ User មួយណា?
     public function user()
     {
         return $this->belongsTo(User::class);

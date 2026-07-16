@@ -6,14 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\OrderResource;
 use App\Models\Cart;
 use App\Models\Order;
+use App\Models\Product;
 use App\Models\ProductStockMovement;
 use App\Models\User;
 use App\Notifications\NewOrderNotification;
+use App\Notifications\TelegramOrderNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
-use App\Notifications\TelegramOrderNotification;
 
 class OrderController extends Controller
 {
@@ -102,16 +103,19 @@ class OrderController extends Controller
     }
 
     //ឆែកស្តុក កាត់ស្តុក និងរៀបចំទិន្នន័យទំនិញ
+    // ឆែកស្តុក កាត់ស្តុក និងរៀបចំទិន្នន័យទំនិញ
     private function processCartItems($cartItems, $orderNumber)
     {
         $subtotal = 0;
         $orderItemsData = [];
 
         foreach ($cartItems as $cartItem) {
-            $product = $cartItem->product;
+            // ទាញយក Product ថ្មីបំផុតពី DB ដើម្បីប្រាកដថាស្តុកត្រឹមត្រូវ (ការពារភ្ញៀវទិញជាន់គ្នាក្នុងវិនាទីតែមួយ)
+            $product = Product::lockForUpdate()->find($cartItem->product_id);
 
-            if ($product->current_stock < $cartItem->quantity) {
-                throw new \Exception("Product '{$product->name}' is out of stock or insufficient quantity.");
+            // ឆែកស្តុកពិតប្រាកដ
+            if (!$product || $product->current_stock < $cartItem->quantity) {
+                throw new \Exception("Sorry, Product '{$cartItem->product->name}' is out of stock or insufficient quantity.");
             }
 
             $unitPrice = $product->price - ($product->price * ($product->discount_percent / 100));
@@ -127,15 +131,16 @@ class OrderController extends Controller
                 'subtotal'     => $itemSubtotal,
             ];
 
-            // កត់ត្រាចលនាស្តុក
+            // 🌟 កត់ត្រាចលនាស្តុក (កក់ទុកសិន / Reserve)
+            // យើងកាត់ស្តុក OUT ភ្លាមៗ ដើម្បីកុំឱ្យភ្ញៀវក្រោយទិញបាន ប៉ុន្តែយើងមិនទាន់ប៉ះពាល់ Serial ទេ!
             ProductStockMovement::create([
                 'product_id'       => $product->id,
-                'reference_number' => $orderNumber,
+                'reference_number' => $orderNumber, // ភ្ជាប់លេខវិក្កយបត្រ ដើម្បីងាយស្រួលរកពេល Admin Scan
                 'type'             => 'OUT',
                 'quantity'         => $cartItem->quantity,
                 'cost_price'       => $product->cost_price ?? 0,
                 'balance_after'    => $product->current_stock - $cartItem->quantity,
-                'note'             => 'Product sold via checkout',
+                'note'             => 'Reserved for Order (Pending Fulfillment): ' . $orderNumber,
             ]);
         }
 

@@ -5,10 +5,9 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AdminOrderResource;
 use App\Models\Order;
-use App\Models\OrderItem;
+use App\Models\ProductSerial;
 use App\Models\Product;
 use App\Models\ProductStockMovement;
-use App\Models\User;
 use App\Notifications\OrderStatusUpdatedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -211,6 +210,108 @@ class OrderController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to delete order: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * ៥. មុខងារស្កេនបញ្ចូល Serial Number សម្រាប់វិក្កយបត្រ (Standard Flow)
+     */
+    public function fulfillOrderSerials(Request $request, $id)
+    {
+        $request->validate([
+            'serial_number' => 'required|string',
+        ]);
+
+        $order = Order::with('items.product')->findOrFail($id);
+
+        // ការពារកុំឱ្យស្កេនបញ្ចូល Serial លើវិក្កយបត្រដែលបិទបញ្ជីរួច
+        if (in_array($order->status, ['COMPLETED', 'CANCELLED'])) {
+            return response()->json([
+                'success' => false,
+                'message' => "Cannot scan serials. Order is already {$order->status}."
+            ], 400);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // ១. ស្វែងរក Serial Number នៅក្នុងប្រព័ន្ធ (ប្រើ lockForUpdate ដើម្បីការពារ Admin ២នាក់ ស្កេន Serial តែមួយជាន់គ្នា)
+            $serial = ProductSerial::where('serial_number', $request->serial_number)
+                ->lockForUpdate()
+                ->first();
+
+            // ករណីទី ២ និងទី ៣ នឹងត្រូវសរសេរចូលត្រង់ចំណុចនេះនៅពេលក្រោយ (Smart Solution ពេលរកមិនឃើញ)
+            if (!$serial) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Serial number not found in the system.'
+                ], 404);
+            }
+
+            if ($serial->status !== 'AVAILABLE') {
+                return response()->json([
+                    'success' => false,
+                    'message' => "This serial number is already {$serial->status}."
+                ], 400);
+            }
+
+            // ២. ផ្ទៀងផ្ទាត់ថាតើ Serial នេះជារបស់ Product ដែលភ្ញៀវបានកម្ម៉ង់មែនឬអត់?
+            $orderItem = $order->items->where('product_id', $serial->product_id)->first();
+
+            if (!$orderItem) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mismatch Error: This serial number belongs to a product that is NOT in this order.'
+                ], 400);
+            }
+
+            // ៣. ស្វែងរក Movement (OUT) ដែលបានកក់ទុកពេល Checkout ដោយភ្ញៀវ
+            $outMovement = ProductStockMovement::where('reference_number', $order->order_number)
+                ->where('product_id', $serial->product_id)
+                ->where('type', 'OUT')
+                ->first();
+
+            if (!$outMovement) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'System Error: Cannot find the reserved stock movement (OUT) for this product.'
+                ], 500);
+            }
+
+            // ៤. ឆែកមើលចំនួន Serial ដែលបានស្កេនរួច ធៀបនឹងចំនួនដែលបានកម្ម៉ង់
+            $scannedCount = ProductSerial::where('sold_movement_id', $outMovement->id)->count();
+
+            if ($scannedCount >= $outMovement->quantity) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Fulfilled: All {$outMovement->quantity} serial(s) for this product have already been scanned."
+                ], 400);
+            }
+
+            // ៥. អាប់ដេត Serial ទៅជា SOLD និងភ្ជាប់ទៅកាន់ Movement (OUT) នៃវិក្កយបត្រនេះ
+            $serial->update([
+                'status'           => 'SOLD',
+                'sold_movement_id' => $outMovement->id,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Serial number successfully linked to the order.',
+                'data'    => [
+                    'product_name'   => $orderItem->product->name,
+                    'serial_number'  => $serial->serial_number,
+                    'scanned_count'  => $scannedCount + 1, // ចំនួនដែលស្កេនបាន
+                    'required_count' => $outMovement->quantity, // ចំនួនសរុបដែលត្រូវស្កេន
+                ]
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fulfill serial: ' . $e->getMessage()
             ], 500);
         }
     }
