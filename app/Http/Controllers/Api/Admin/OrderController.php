@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\AdminOrderResource;
 use App\Models\Order;
 use App\Models\ProductSerial;
-use App\Models\Product;
 use App\Models\ProductStockMovement;
 use App\Notifications\OrderStatusUpdatedNotification;
 use Illuminate\Http\Request;
@@ -67,7 +66,8 @@ class OrderController extends Controller
             'status' => 'required|in:PENDING,PROCESSING,SHIPPED,COMPLETED,CANCELLED'
         ]);
 
-        $order = Order::with(['items', 'payment'])->findOrFail($id);
+        // 🌟 ត្រូវប្រាកដថាបានទាញយក items.product មកជាមួយ ដើម្បីឆែកមើល is_serialized
+        $order = Order::with(['items.product', 'payment'])->findOrFail($id);
 
         // ការពារកុំឱ្យ Admin ចុចដូរ Status វិក្កយបត្រដែលបិទបញ្ជីរួច (COMPLETED ឬ CANCELLED)
         if (in_array($order->status, ['COMPLETED', 'CANCELLED'])) {
@@ -81,6 +81,40 @@ class OrderController extends Controller
 
         try {
             $newStatus = $request->status;
+
+            // ==========================================
+            // 🌟 កូដការពារ៖ ឆែកមើល Serial មុននឹងឱ្យប្តូរទៅ COMPLETED
+            // ==========================================
+            if ($newStatus === 'COMPLETED') {
+                foreach ($order->items as $item) {
+                    $product = $item->product;
+
+                    // បើទំនិញនេះត្រូវការ Serial នោះយើងត្រូវឆែកមើល
+                    if ($product && $product->is_serialized) {
+
+                        // ១. រកមើលប្រវត្តិដកស្តុក (OUT) របស់ទំនិញនេះ ក្នុងវិក្កយបត្រនេះ
+                        $outMovement = ProductStockMovement::where('reference_number', $order->order_number)
+                            ->where('product_id', $product->id)
+                            ->where('type', 'OUT')
+                            ->first();
+
+                        if ($outMovement) {
+                            // ២. រាប់ចំនួន Serial ដែល Admin បានស្កេនបញ្ចូល ធៀបនឹងចំនួនដែលបានកម្ម៉ង់
+                            $scannedCount = ProductSerial::where('sold_movement_id', $outMovement->id)->count();
+
+                            // ៣. បើស្កេនមិនទាន់គ្រប់ទេ បោះ Error បដិសេធភ្លាមៗ!
+                            if ($scannedCount < $outMovement->quantity) {
+                                DB::rollBack();
+                                return response()->json([
+                                    'success' => false,
+                                    'message' => "មិនអាចប្តូរទៅ COMPLETED បានទេ! ទំនិញ '{$product->name}' ទាមទារ Serial តែអ្នកទើបតែស្កេនបាន {$scannedCount}/{$outMovement->quantity} ប៉ុណ្ណោះ។"
+                                ], 400);
+                            }
+                        }
+                    }
+                }
+            }
+
             $order->status = $newStatus;
 
             // ==========================================
@@ -98,15 +132,31 @@ class OrderController extends Controller
             }
 
             // ==========================================
-            // 🌟 ករណីទី ២៖ បោះបង់ (CANCELLED) -> បូកស្តុកទំនិញចូលឃ្លាំងវិញ
+            // 🌟 ករណីទី ២៖ បោះបង់ (CANCELLED) -> បូកស្តុកទំនិញចូលឃ្លាំងវិញ និងដក Serial
             // ==========================================
             if ($newStatus === 'CANCELLED') {
                 foreach ($order->items as $item) {
-                    $product = Product::find($item->product_id);
+                    $product = $item->product; // ប្រើ Relationship ដែលមានស្រាប់
 
                     if ($product) {
+                        // 🌟 បន្ថែម៖ បើមានស្កេន Serial ខ្លះហើយ ពេល Cancel ត្រូវដក Serial នោះចេញពី Order នេះវិញ (ដូរទៅ AVAILABLE វិញ)
+                        if ($product->is_serialized) {
+                            $outMovement = ProductStockMovement::where('reference_number', $order->order_number)
+                                ->where('product_id', $product->id)
+                                ->where('type', 'OUT')
+                                ->first();
+
+                            if ($outMovement) {
+                                \App\Models\ProductSerial::where('sold_movement_id', $outMovement->id)
+                                    ->update([
+                                        'status' => 'AVAILABLE',
+                                        'sold_movement_id' => null
+                                    ]);
+                            }
+                        }
+
                         // បង្កើត Record បញ្ចូលស្តុក (Stock IN) ទៅក្នុង ProductStockMovement
-                        ProductStockMovement::create([
+                        \App\Models\ProductStockMovement::create([
                             'product_id'       => $product->id,
                             'reference_number' => $order->order_number,
                             'type'             => 'IN', // ប្រភេទនាំចូល
