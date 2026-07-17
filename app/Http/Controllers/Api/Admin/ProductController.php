@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductResource;
 use App\Http\Resources\StorefrontProductResource;
 use App\Models\Product;
+use App\Models\ProductStockMovement;
 use App\Services\CloudinaryStorageService; // 🌟 ប្តូរមកប្រើ Cloudinary
 use App\Services\ProductService;
 use Illuminate\Http\Request;
@@ -214,6 +215,30 @@ class ProductController extends Controller
             'is_serialized'     => 'boolean',
             'is_recommended'    => 'boolean',
         ]);
+
+        // =================================================================
+        // 🌟 ផ្នែកទី ២៖ កូដការពារ (Preventative Code) មិនឱ្យប្តូរ Serial ពេលមានស្តុក
+        // =================================================================
+        if ($request->has('is_serialized')) {
+            $newIsSerialized = $request->boolean('is_serialized');
+            
+            // ឆែកមើលថាតើ Admin កំពុងព្យាយាមប្តូរស្ថានភាពខុសពីតម្លៃដើមឬទេ
+            if ($newIsSerialized !== (bool) $product->is_serialized) {
+                
+                // គណនាស្តុកបច្ចុប្បន្នរបស់ទំនិញនេះដោយផ្ទាល់
+                $currentStock = ProductStockMovement::where('product_id', $product->id)
+                    ->selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0) as total")
+                    ->value('total');
+
+                // ប្រសិនបើស្តុកធំជាង ០ នោះបដិសេធមិនឱ្យ Update ទេ
+                if ($currentStock > 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Cannot change is_serialized when there is stock.'
+                    ], 400);
+                }
+            }
+        }
 
         return DB::transaction(function () use ($request, $product, $validatedData) {
             if ($request->has('name') && $request->name !== $product->name) {
