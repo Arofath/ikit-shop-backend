@@ -49,7 +49,8 @@ class OrderController extends Controller
      */
     public function show($id)
     {
-        $order = Order::with(['user', 'items.product.thumbnail', 'payment'])->findOrFail($id);
+        // 🌟 ថែម 'items.product.serials' ចូលទៅក្នុង with()
+        $order = Order::with(['user', 'items.product.thumbnail', 'items.product.serials', 'payment'])->findOrFail($id);
 
         return response()->json([
             'success' => true,

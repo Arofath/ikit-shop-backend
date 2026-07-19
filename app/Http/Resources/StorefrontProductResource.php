@@ -36,6 +36,9 @@ class StorefrontProductResource extends JsonResource
             'is_recommended'   => (bool) $this->is_recommended,
             'current_stock'    => (int) ($this->current_stock ?? 0),
             'is_serialized' => (bool) $this->is_serialized,
+            'available_serials' => $this->whenLoaded('serials', function () {
+                return $this->serials->where('status', 'AVAILABLE')->pluck('serial_number');
+            }),
         ];
     }
 }
