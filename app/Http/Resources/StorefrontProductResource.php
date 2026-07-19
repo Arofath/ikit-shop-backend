@@ -35,6 +35,7 @@ class StorefrontProductResource extends JsonResource
             // 🌟 ព័ត៌មានបន្ថែមសម្រាប់បង្ហាញ UI
             'is_recommended'   => (bool) $this->is_recommended,
             'current_stock'    => (int) ($this->current_stock ?? 0),
+            'is_serialized' => (bool) $this->is_serialized,
         ];
     }
 }
