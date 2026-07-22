@@ -66,7 +66,7 @@ class PosController extends Controller
         $stockSubquery = ProductStockMovement::selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0)")
             ->whereColumn('product_stock_movements.product_id', 'products.id');
 
-        $products = Product::select('id', 'name', 'sku', 'price', 'brand_id', 'created_at')
+        $products = Product::select('id', 'name', 'sku', 'price', 'brand_id', 'is_serialized', 'created_at')
             ->selectSub($stockSubquery, 'current_stock')
             ->active()
             ->when($search, function ($query, $search) {
