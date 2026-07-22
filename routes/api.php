@@ -241,6 +241,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::get('/pos/products/search', [PosController::class, 'searchProducts']);
         Route::get('/pos/users/search', [PosController::class, 'searchUsers']);
         Route::post('/pos/orders', [PosController::class, 'storeOrder']);
+        Route::post('/pos/check-serial', [PosController::class, 'checkSerial']);
 
         Route::prefix('notifications')->group(function () {
             Route::get('/', [NotificationController::class, 'index']);

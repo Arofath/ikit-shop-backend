@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Category;
 use App\Models\Brand;
-use App\Models\Product;
-use App\Models\ProductStockMovement;
-use App\Models\User;
+use App\Models\Category;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Product;
+use App\Models\ProductSerial;
+use App\Models\ProductStockMovement;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -197,22 +198,22 @@ class PosController extends Controller
                 ];
 
                 // កាត់ស្តុក (Stock Move)
-                ProductStockMovement::create([
+                $movement = ProductStockMovement::create([
                     'product_id'       => $item['product_id'],
                     'reference_number' => $orderNumber, // ភ្ជាប់វាទៅ Order តាមរយៈ Order Number
                     'type'             => 'OUT',
                     'quantity'         => $item['quantity'],
                     'cost_price'       => 0,
                     'balance_after'    => $currentStock - $item['quantity'],
-                    'note'             => 'POS Order: ' . $orderNumber, // ✅ ដូរពី notes មក note វិញ
+                    'note'             => 'POS Order: ' . $orderNumber,
                 ]);
 
                 if (!empty($item['serials'])) {
-                    \App\Models\ProductSerial::whereIn('serial_number', $item['serials'])
+                    ProductSerial::whereIn('serial_number', $item['serials'])
                         ->where('product_id', $item['product_id'])
                         ->update([
                             'status' => 'SOLD',
-                            'sold_movement_id' => $movement->id // ភ្ជាប់ Serial នេះទៅកាន់ប្រវត្តិដកស្តុក
+                            'sold_movement_id' => $movement->id // 🌟 ឥឡូវនេះ $movement->id ដំណើរការហើយ
                         ]);
                 }
             }
@@ -281,6 +282,48 @@ class PosController extends Controller
                 'message' => 'Failed to create order: ' . $e->getMessage()
             ], 422);
         }
+    }
+
+    /**
+     * ៦. API សម្រាប់ត្រួតពិនិត្យ Serial Number ភ្លាមៗ (Real-time Validation)
+     */
+    public function checkSerial(Request $request)
+    {
+        $request->validate([
+            'serial_number' => 'required|string',
+            'product_id'    => 'required|exists:products,id'
+        ]);
+
+        $serial = \App\Models\ProductSerial::where('serial_number', $request->serial_number)->first();
+
+        // លក្ខខណ្ឌទី ១៖ រកមិនឃើញក្នុងប្រព័ន្ធ
+        if (!$serial) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Serial number not found in the system.'
+            ], 404);
+        }
+
+        // លក្ខខណ្ឌទី ២៖ ខុសទំនិញ (យក Serial របស់ម៉ូដែលផ្សេងមកស្កេន)
+        if ($serial->product_id != $request->product_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This serial number does not belong to the selected product.'
+            ], 400);
+        }
+
+        // លក្ខខណ្ឌទី ៣៖ មិន Available (លក់ចេញហើយ ឬខូច)
+        if ($serial->status !== 'AVAILABLE') {
+            return response()->json([
+                'success' => false,
+                'message' => "This serial number is already {$serial->status}."
+            ], 400);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Serial number is valid and available.'
+        ]);
     }
 
     /**
