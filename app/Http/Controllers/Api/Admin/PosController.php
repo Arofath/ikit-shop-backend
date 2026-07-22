@@ -137,6 +137,8 @@ class PosController extends Controller
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.serials'    => 'nullable|array',
+            'items.*.serials.*'  => 'string',
         ]);
 
         try {
@@ -204,6 +206,15 @@ class PosController extends Controller
                     'balance_after'    => $currentStock - $item['quantity'],
                     'note'             => 'POS Order: ' . $orderNumber, // ✅ ដូរពី notes មក note វិញ
                 ]);
+
+                if (!empty($item['serials'])) {
+                    \App\Models\ProductSerial::whereIn('serial_number', $item['serials'])
+                        ->where('product_id', $item['product_id'])
+                        ->update([
+                            'status' => 'SOLD',
+                            'sold_movement_id' => $movement->id // ភ្ជាប់ Serial នេះទៅកាន់ប្រវត្តិដកស្តុក
+                        ]);
+                }
             }
 
             // 🌟 ៥. គណនា Grand Total
