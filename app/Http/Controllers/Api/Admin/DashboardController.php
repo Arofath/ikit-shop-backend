@@ -29,36 +29,45 @@ class DashboardController extends Controller
         // ២. KPIs (Summary Cards) - គិតលេខតាម $cardRange
         // ==========================================
         $summary = [
-            'total_revenue'   => Order::whereBetween('created_at', [$cardStart, $cardEnd])->where('payment_status', 'PAID')->sum('grand_total'),
+            // 🌟 ប្តូរពី created_at ទៅ paid_at ដើម្បីឱ្យលុយលោតត្រូវថ្ងៃដែលទទួលបាន
+            'total_revenue'   => Order::whereBetween('paid_at', [$cardStart, $cardEnd])
+                ->where('payment_status', 'PAID')
+                ->sum('grand_total'),
+
+            // ចំនួន Order នៅរក្សាការរាប់តាមថ្ងៃដែលបង្កើតដដែល (created_at)
             'total_orders'    => Order::whereBetween('created_at', [$cardStart, $cardEnd])->count(),
-            'active_customers' => User::where('role', 'customer')->count(), // Customer មិនបាច់ Filter ទេ
+            'active_customers' => User::where('role', 'customer')->count(),
             'pending_orders'  => Order::whereBetween('created_at', [$cardStart, $cardEnd])->where('status', 'PENDING')->count(),
-            'total_products'  => Product::count(), // Product មិនបាច់ Filter ទេ
+            'total_products'  => Product::count(),
         ];
 
         // ==========================================
         // ៣. Chart Data (Revenue & Orders) - គិតលេខតាម $chartRange
         // ==========================================
-        if ($groupBy === 'month') {
-            $selectRaw = [
-                DB::raw('SUM(CASE WHEN payment_status = "PAID" THEN grand_total ELSE 0 END) as revenue'),
-                DB::raw('COUNT(id) as orders_count'),
-                // 🌟 ថែមការរាប់តែ Order ដែលបានបង់ប្រាក់
-                DB::raw('SUM(CASE WHEN payment_status = "PAID" THEN 1 ELSE 0 END) as paid_orders_count'),
-                DB::raw('DATE_FORMAT(created_at, "%Y-%m") as group_key')
-            ];
-        } else {
-            $selectRaw = [
-                DB::raw('SUM(CASE WHEN payment_status = "PAID" THEN grand_total ELSE 0 END) as revenue'),
-                DB::raw('COUNT(id) as orders_count'),
-                // 🌟 ថែមការរាប់តែ Order ដែលបានបង់ប្រាក់
-                DB::raw('SUM(CASE WHEN payment_status = "PAID" THEN 1 ELSE 0 END) as paid_orders_count'),
-                DB::raw('DATE(created_at) as group_key')
-            ];
-        }
+        // ដោយសារ Revenue គិតតាម paid_at រីឯ Orders គិតតាម created_at យើងត្រូវបំបែកជា ២ Query ដាច់ពីគ្នា
 
-        $stats = Order::select($selectRaw)
+        $groupFormat = $groupBy === 'month' ? '"%Y-%m"' : 'DATE(%s)';
+        $mysqlFormat = $groupBy === 'month' ? 'DATE_FORMAT(%s, "%Y-%m")' : 'DATE(%s)';
+
+        // ៣.១ ទាញទិន្នន័យចំនួន Order (ផ្អែកលើ created_at)
+        $ordersStats = Order::select([
+            DB::raw('COUNT(id) as orders_count'),
+            DB::raw('SUM(CASE WHEN payment_status = "PAID" THEN 1 ELSE 0 END) as paid_orders_count'),
+            DB::raw(sprintf($mysqlFormat, 'created_at') . ' as group_key')
+        ])
             ->whereBetween('created_at', [$chartStart, $chartEnd])
+            ->groupBy('group_key')
+            ->get()
+            ->keyBy('group_key');
+
+        // ៣.២ ទាញទិន្នន័យចំណូល (ផ្អែកលើ paid_at)
+        $revenueStats = Order::select([
+            DB::raw('SUM(grand_total) as revenue'),
+            DB::raw(sprintf($mysqlFormat, 'paid_at') . ' as group_key')
+        ])
+            ->where('payment_status', 'PAID')
+            ->whereNotNull('paid_at') // ការពារកុំឱ្យ Error ជាមួយទិន្នន័យ NULL
+            ->whereBetween('paid_at', [$chartStart, $chartEnd])
             ->groupBy('group_key')
             ->get()
             ->keyBy('group_key');
@@ -72,18 +81,21 @@ class DashboardController extends Controller
         while ($currentDate <= $chartEnd) {
             if ($groupBy === 'month') {
                 $key = $currentDate->format('Y-m');
-                $labels[] = $currentDate->format('M Y'); // ឧ. May 2024
+                $labels[] = $currentDate->format('M Y');
                 $currentDate->addMonth();
             } else {
                 $key = $currentDate->format('Y-m-d');
-                $labels[] = $currentDate->format('d M'); // ឧ. 15 May
+                $labels[] = $currentDate->format('d M');
                 $currentDate->addDay();
             }
 
-            $stat = $stats->get($key);
-            $revenue[] = $stat ? (float) $stat->revenue : 0;
-            $orders[] = $stat ? (int) $stat->orders_count : 0;
-            $paidOrders[] = $stat ? (int) $stat->paid_orders_count : 0;
+            // ទាញយកទិន្នន័យពី Query ទាំង ២ មកផ្គុំគ្នាបញ្ចូលក្នុង Chart តែមួយ
+            $orderStat = $ordersStats->get($key);
+            $revStat = $revenueStats->get($key);
+
+            $revenue[] = $revStat ? (float) $revStat->revenue : 0;
+            $orders[] = $orderStat ? (int) $orderStat->orders_count : 0;
+            $paidOrders[] = $orderStat ? (int) $orderStat->paid_orders_count : 0;
         }
 
         $chartData = [
