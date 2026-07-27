@@ -29,12 +29,14 @@ class DashboardController extends Controller
         // ២. KPIs (Summary Cards) - គិតលេខតាម $cardRange
         // ==========================================
         $summary = [
-            // 🌟 ប្តូរពី created_at ទៅ paid_at ដើម្បីឱ្យលុយលោតត្រូវថ្ងៃដែលទទួលបាន
-            'total_revenue'   => Order::whereBetween('paid_at', [$cardStart, $cardEnd])
+            // 🌟 ប្រើ whereHas ដើម្បីឆែកទៅដល់ Table payments
+            'total_revenue'   => Order::whereHas('payment', function ($q) use ($cardStart, $cardEnd) {
+                $q->where('status', 'COMPLETED')
+                    ->whereBetween('paid_at', [$cardStart, $cardEnd]);
+            })
                 ->where('payment_status', 'PAID')
                 ->sum('grand_total'),
 
-            // ចំនួន Order នៅរក្សាការរាប់តាមថ្ងៃដែលបង្កើតដដែល (created_at)
             'total_orders'    => Order::whereBetween('created_at', [$cardStart, $cardEnd])->count(),
             'active_customers' => User::where('role', 'customer')->count(),
             'pending_orders'  => Order::whereBetween('created_at', [$cardStart, $cardEnd])->where('status', 'PENDING')->count(),
@@ -62,12 +64,15 @@ class DashboardController extends Controller
 
         // ៣.២ ទាញទិន្នន័យចំណូល (ផ្អែកលើ paid_at)
         $revenueStats = Order::select([
-            DB::raw('SUM(grand_total) as revenue'),
-            DB::raw(sprintf($mysqlFormat, 'paid_at') . ' as group_key')
+            DB::raw('SUM(orders.grand_total) as revenue'),
+            DB::raw(sprintf($mysqlFormat, 'payments.paid_at') . ' as group_key')
         ])
-            ->where('payment_status', 'PAID')
-            ->whereNotNull('paid_at') // ការពារកុំឱ្យ Error ជាមួយទិន្នន័យ NULL
-            ->whereBetween('paid_at', [$chartStart, $chartEnd])
+            // 🌟 JOIN ជាមួយ Table payments
+            ->join('payments', 'orders.id', '=', 'payments.order_id')
+            ->where('orders.payment_status', 'PAID')
+            ->where('payments.status', 'COMPLETED')
+            ->whereNotNull('payments.paid_at')
+            ->whereBetween('payments.paid_at', [$chartStart, $chartEnd])
             ->groupBy('group_key')
             ->get()
             ->keyBy('group_key');
