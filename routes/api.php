@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Admin\ContactController as AdminContactController;
 use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\OrderController;
 use App\Http\Controllers\Api\Admin\PosController;
+use App\Http\Controllers\Api\Admin\ReportController;
 use App\Http\Controllers\Api\Admin\SystemController;
 use App\Http\Controllers\Api\Auth\GoogleAuthController;
 use App\Http\Controllers\Api\AuthController;
@@ -202,6 +203,11 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::patch('/{id}/status', [ProductSerialController::class, 'updateStatus']);
             Route::put('/{id}/serial-number', [ProductSerialController::class, 'updateSerialNumber']);
         });
+
+        // Reports
+        Route::get('/reports', [ReportController::class, 'index']);
+        Route::get('/reports/export/excel', [ReportController::class, 'exportExcel']);
+        Route::get('/reports/export/pdf', [ReportController::class, 'exportPdf']);
 
         // Slideshows
         Route::prefix('slideshows')->group(function () {

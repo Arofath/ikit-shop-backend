@@ -10,7 +10,7 @@ use App\Models\Product;
 use App\Models\ProductStockMovement;
 use Illuminate\Support\Facades\DB;
 
-class OrderController extends Controller
+class AdminOrderController extends Controller
 {
     /**
      * ១. បង្ហាញវិក្កយបត្រទាំងអស់ (មានមុខងារ Filter តាម Status)

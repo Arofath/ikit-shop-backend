@@ -259,14 +259,18 @@ class PosController extends Controller
 
             // 🌟 ៨. បង្កើតកំណត់ត្រា Payment
             $paymentRecordStatus = 'PENDING';
+            $paidAtTime = null; // 🌟 បន្ថែមអថេរសម្រាប់ថ្ងៃបង់ប្រាក់
+
             if ($request->payment_status === 'PAID') {
                 $paymentRecordStatus = 'COMPLETED';
+                $paidAtTime = now(); // 🌟 បើបង់រួចរាល់ យកម៉ោងបច្ចុប្បន្នដាក់បញ្ចូល
             }
 
             $order->payment()->create([
                 'amount'         => $grandTotal,
                 'payment_method' => $request->payment_method,
                 'status'         => $paymentRecordStatus,
+                'paid_at'        => $paidAtTime, // 🌟 កត់ត្រាម៉ោងបង់ប្រាក់នៅទីនេះ
             ]);
             DB::commit();
 

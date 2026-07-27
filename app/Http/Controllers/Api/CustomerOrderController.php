@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-class OrderController extends Controller
+class CustomerOrderController extends Controller
 {
     /**
      * មុខងារបញ្ជាទិញ (Checkout)
