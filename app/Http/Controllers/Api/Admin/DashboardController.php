@@ -47,9 +47,8 @@ class DashboardController extends Controller
         // ៣. Chart Data (Revenue & Orders) - គិតលេខតាម $chartRange
         // ==========================================
         // ដោយសារ Revenue គិតតាម paid_at រីឯ Orders គិតតាម created_at យើងត្រូវបំបែកជា ២ Query ដាច់ពីគ្នា
-
         $groupFormat = $groupBy === 'month' ? '"%Y-%m"' : 'DATE(%s)';
-        $mysqlFormat = $groupBy === 'month' ? 'DATE_FORMAT(%s, "%Y-%m")' : 'DATE(%s)';
+        $mysqlFormat = $groupBy === 'month' ? 'DATE_FORMAT(%s, "%%Y-%%m")' : 'DATE(%s)';
 
         // ៣.១ ទាញទិន្នន័យចំនួន Order (ផ្អែកលើ created_at)
         $ordersStats = Order::select([
