@@ -51,21 +51,23 @@ class ReportController extends Controller
         // ផ្នែកទី ២៖ ទាញយកបញ្ជីវិក្កយបត្រ សម្រាប់តារាង (Table)
         // ==========================================
 
-        $orders = Order::with(['customer' => function ($query) {
+        $orders = Order::with(['user' => function ($query) {
             $query->select('id', 'name');
         }])
-            ->where('payment_status', 'PAID') // បង្ហាញតែ Order ដែល PAID ក្នុង Report
+            ->where('payment_status', 'PAID')
             ->whereBetween('created_at', [$startDate, $endDate])
             ->orderBy('created_at', 'desc')
             ->paginate(15);
 
-        // ចម្រាញ់ទិន្នន័យឱ្យខ្លី និងងាយស្រួលសម្រាប់ Frontend យកទៅប្រើ
         $formattedOrders = $orders->map(function ($order) {
             return [
                 'id'             => $order->id,
                 'date'           => $order->created_at->format('d M Y'),
                 'order_number'   => $order->order_number,
-                'customer_name'  => $order->customer ? $order->customer->name : ($order->shipping_name ?? 'Walk-in Customer'),
+
+                // 🌟 ដូរពី $order->customer ទៅជា $order->user វិញនៅទីនេះ
+                'customer_name'  => $order->user ? $order->user->name : ($order->shipping_name ?? 'Walk-in Customer'),
+
                 'discount'       => (float) $order->discount,
                 'amount'         => (float) $order->grand_total,
                 'payment_status' => $order->payment_status,
