@@ -1,14 +1,17 @@
 FROM php:8.4-cli
 
-# ដំឡើង Tools ផ្សេងៗ
+# ដំឡើង Tools ផ្សេងៗ និង Libraries សម្រាប់ដំណើរការ GD Extension
 RUN apt-get update && apt-get install -y \
     unzip \
     git \
     curl \
     libzip-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo_mysql zip gd \
     && rm -rf /var/lib/apt/lists/*
-
-RUN docker-php-ext-install pdo_mysql zip
 
 WORKDIR /app
 
