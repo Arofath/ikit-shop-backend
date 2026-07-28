@@ -38,9 +38,13 @@ class OrderController extends Controller
         // បែងចែក ១៥ វិក្កយបត្រក្នុងមួយទំព័រ
         $orders = $query->paginate(15);
 
+        // 🌟 ដំណោះស្រាយ៖ ទាញយកទិន្នន័យ និង Pagination Meta ចេញពី Resource ជាមុនសិន
+        $resource = AdminOrderResource::collection($orders)->response()->getData(true);
+
         return response()->json([
             'success' => true,
-            'data'    => AdminOrderResource::collection($orders)
+            'data'    => $resource['data'], // ទិន្នន័យវិក្កយបត្រ
+            'meta'    => $resource['meta']  // 🌟 បញ្ជូន Meta ទៅឱ្យ Frontend ដើម្បីឱ្យ Pagination ដំណើរការ
         ]);
     }
 
