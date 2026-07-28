@@ -51,14 +51,14 @@ Route::prefix('products')->group(function () {
 
 Route::get('/categories', [CategoryController::class, 'storefrontIndex']);
 Route::get('/brands', [BrandController::class, 'storefrontIndex']);
-// Public Route (អតិថិជនប្រើ)
-Route::get('check-warranty', [PublicWarrantyController::class, 'check']);
 
 // Home Page Data (Recommended + New Arrivals)
 Route::get('/home', [HomeController::class, 'index']);
 
 // Contact Us
 Route::post('/contacts', [CustomerContactController::class, 'store']);
+
+Route::get('/warranty-check', [PublicWarrantyController::class, 'check']);
 
 // =============================================================
 // 2. PROTECTED ROUTES (Logged-in Users)
