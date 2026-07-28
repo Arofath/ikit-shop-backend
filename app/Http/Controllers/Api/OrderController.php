@@ -50,10 +50,18 @@ class OrderController extends Controller
 
             // ខ. គណនាថ្លៃដឹក និងតម្លៃសរុប
             $shippingFee = $this->calculateShippingFee($request->city);
-            $grandTotal  = $processedData['subtotal'] + $shippingFee;
+            $grandTotal  = ($processedData['subtotal'] - $processedData['discount_total']) + $shippingFee;
 
             // គ. បង្កើតវិក្កយបត្រមេ
-            $order = $this->createOrderRecord($user, $request, $orderNumber, $processedData['subtotal'], $shippingFee, $grandTotal);
+            $order = $this->createOrderRecord(
+                $user,
+                $request,
+                $orderNumber,
+                $processedData['subtotal'],
+                $processedData['discount_total'],
+                $shippingFee,
+                $grandTotal
+            );
 
             // ឃ. បញ្ចូលបញ្ជីទំនិញទៅក្នុងវិក្កយបត្រ
             $order->items()->createMany($processedData['items_data']);
@@ -106,21 +114,28 @@ class OrderController extends Controller
     // ឆែកស្តុក កាត់ស្តុក និងរៀបចំទិន្នន័យទំនិញ
     private function processCartItems($cartItems, $orderNumber)
     {
-        $subtotal = 0;
+        $originalSubtotal = 0; // 🌟 តម្លៃដើមសរុប (មិនទាន់កាត់បញ្ចុះតម្លៃ)
+        $totalDiscountAmount = 0; // 🌟 ទឹកប្រាក់បញ្ចុះតម្លៃសរុប
         $orderItemsData = [];
 
         foreach ($cartItems as $cartItem) {
-            // ទាញយក Product ថ្មីបំផុតពី DB ដើម្បីប្រាកដថាស្តុកត្រឹមត្រូវ (ការពារភ្ញៀវទិញជាន់គ្នាក្នុងវិនាទីតែមួយ)
             $product = Product::lockForUpdate()->find($cartItem->product_id);
 
-            // ឆែកស្តុកពិតប្រាកដ
             if (!$product || $product->current_stock < $cartItem->quantity) {
                 throw new \Exception("Sorry, Product '{$cartItem->product->name}' is out of stock or insufficient quantity.");
             }
 
-            $unitPrice = $product->price - ($product->price * ($product->discount_percent / 100));
-            $itemSubtotal = $unitPrice * $cartItem->quantity;
-            $subtotal += $itemSubtotal;
+            // គណនាតម្លៃបញ្ចុះតម្លៃក្នុងមួយឯកតា
+            $discountPerUnit = $product->price * (($product->discount_percent ?? 0) / 100);
+            $unitPrice = $product->price - $discountPerUnit; // តម្លៃលក់ចេញពិតប្រាកដ ($17.10)
+
+            // គណនាសរុបតាម Item
+            $itemOriginalSubtotal = $product->price * $cartItem->quantity; // ($19.00)
+            $itemDiscountTotal = $discountPerUnit * $cartItem->quantity;   // ($1.90)
+            $itemFinalSubtotal = $unitPrice * $cartItem->quantity;         // ($17.10)
+
+            $originalSubtotal += $itemOriginalSubtotal;
+            $totalDiscountAmount += $itemDiscountTotal;
 
             $orderItemsData[] = [
                 'product_id'   => $product->id,
@@ -128,14 +143,12 @@ class OrderController extends Controller
                 'product_sku'  => $product->sku,
                 'quantity'     => $cartItem->quantity,
                 'unit_price'   => $unitPrice,
-                'subtotal'     => $itemSubtotal,
+                'subtotal'     => $itemFinalSubtotal,
             ];
 
-            // 🌟 កត់ត្រាចលនាស្តុក (កក់ទុកសិន / Reserve)
-            // យើងកាត់ស្តុក OUT ភ្លាមៗ ដើម្បីកុំឱ្យភ្ញៀវក្រោយទិញបាន ប៉ុន្តែយើងមិនទាន់ប៉ះពាល់ Serial ទេ!
             ProductStockMovement::create([
                 'product_id'       => $product->id,
-                'reference_number' => $orderNumber, // ភ្ជាប់លេខវិក្កយបត្រ ដើម្បីងាយស្រួលរកពេល Admin Scan
+                'reference_number' => $orderNumber,
                 'type'             => 'OUT',
                 'quantity'         => $cartItem->quantity,
                 'cost_price'       => $product->cost_price ?? 0,
@@ -145,21 +158,23 @@ class OrderController extends Controller
         }
 
         return [
-            'subtotal'   => $subtotal,
-            'items_data' => $orderItemsData
+            'subtotal'         => $originalSubtotal,     // 🌟 ផ្ញើតម្លៃដើមពេញ ($19.00)
+            'discount_total'   => $totalDiscountAmount,  // 🌟 ផ្ញើទឹកប្រាក់ចុះតម្លៃសរុប ($1.90)
+            'items_data'       => $orderItemsData
         ];
     }
 
     // បង្កើតវិក្កយបត្រ (Order Model)
-    private function createOrderRecord($user, $request, $orderNumber, $subtotal, $shippingFee, $grandTotal)
+    private function createOrderRecord($user, $request, $orderNumber, $subtotal, $discountTotal, $shippingFee, $grandTotal)
     {
         return Order::create([
             'order_number'     => $orderNumber,
             'user_id'          => $user->id,
             'shipping_name'    => $request->shipping_name,
             'shipping_phone'   => $request->shipping_phone,
-            'shipping_address' => $request->shipping_address, // ទីនេះទុកពេញដដែល
+            'shipping_address' => $request->shipping_address,
             'subtotal'         => $subtotal,
+            'discount_total'   => $discountTotal, // 🌟 កត់ត្រាទំហំលុយចុះតម្លៃសរុបនៅទីនេះ
             'shipping_fee'     => $shippingFee,
             'grand_total'      => $grandTotal,
             'status'           => 'PENDING',

@@ -108,7 +108,7 @@ class OrderController extends Controller
                                 DB::rollBack();
                                 return response()->json([
                                     'success' => false,
-                                    'message' => "មិនអាចប្តូរទៅ COMPLETED បានទេ! ទំនិញ '{$product->name}' ទាមទារ Serial តែអ្នកទើបតែស្កេនបាន {$scannedCount}/{$outMovement->quantity} ប៉ុណ្ណោះ។"
+                                    'message' => "Cannot change to COMPLETED. Product '{$product->name}' requires serials but only {$scannedCount}/{$outMovement->quantity} have been scanned."
                                 ], 400);
                             }
                         }
