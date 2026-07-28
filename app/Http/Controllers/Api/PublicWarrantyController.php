@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Models\Order;
 use App\Models\ProductSerial;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 
 class PublicWarrantyController extends Controller
 {
@@ -19,7 +20,7 @@ class PublicWarrantyController extends Controller
 
         $serial = ProductSerial::with([
             'product.warranty',
-            'movementOut.order'
+            'soldMovement'
         ])->where('serial_number', $sn)->first();
 
         // 1. Serial number not found
@@ -40,14 +41,17 @@ class PublicWarrantyController extends Controller
             ], 200);
         }
 
-        $order = $serial->movementOut->order ?? null;
-        if (!$order) {
+        $soldMovement = $serial->soldMovement;
+        if (!$soldMovement) {
             return response()->json([
                 'success' => false,
                 'message' => 'No order information found for this serial number.',
                 'status'  => 'NO_INFO'
             ], 404);
         }
+
+        $orderNumber = $soldMovement->reference_number;
+        $order = Order::where('order_number', $orderNumber)->first();
 
         // 3. Check if warranty exists
         if (!$serial->product->warranty) {
@@ -64,21 +68,19 @@ class PublicWarrantyController extends Controller
         }
 
         // 4. Calculate warranty expiry
-        $purchaseDate = $order->created_at;
-        $warrantyMonths = $serial->product->warranty->duration_months;
-        $expiryDate = $purchaseDate->copy()->addMonths($warrantyMonths);
-        $isWarrantyActive = Carbon::now()->lessThanOrEqualTo($expiryDate);
+        $expiryDate = $serial->warranty_expiry_date;
+        $status = $serial->warranty_status;
 
         return response()->json([
             'success' => true,
-            'status'  => $isWarrantyActive ? 'ACTIVE' : 'EXPIRED',
+            'status'  => strtoupper($status),
             'data'    => [
                 'product_name'    => $serial->product->name,
                 'serial_number'   => $serial->serial_number,
-                'duration_months' => $warrantyMonths,
-                'purchase_date'   => $purchaseDate->format('Y-m-d H:i:s'),
-                'expiry_date'     => $expiryDate->format('Y-m-d H:i:s'),
-                'days_remaining'  => $isWarrantyActive ? Carbon::now()->diffInDays($expiryDate) : 0
+                'duration_months' => $serial->product->warranty->duration_months ?? 0,
+                'purchase_date'   => $soldMovement->created_at->format('Y-m-d H:i:s'),
+                'expiry_date'     => $expiryDate ? $expiryDate->format('Y-m-d H:i:s') : null,
+                'days_remaining'  => ($status === 'Active' && $expiryDate) ? Carbon::now()->startOfDay()->diffInDays($expiryDate->startOfDay()) : 0
             ]
         ], 200);
     }
