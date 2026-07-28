@@ -94,24 +94,8 @@ class ReportController extends Controller
         ]);
     }
 
-    /**
-     * Export ទិន្នន័យទៅជា Excel
-     */
-    public function exportExcel(Request $request)
+    private function getDateRange($type)
     {
-        $type = $request->query('type', 'daily');
-        $fileName = "sales_report_{$type}_" . now()->format('Ymd') . ".xlsx";
-
-        return Excel::download(new SalesReportExport($type), $fileName);
-    }
-
-    /**
-     * Export ទិន្នន័យទៅជា PDF
-     */
-    public function exportPdf(Request $request)
-    {
-        $type = $request->query('type', 'daily');
-
         $startDate = Carbon::today();
         $endDate = Carbon::today()->endOfDay();
 
@@ -122,19 +106,34 @@ class ReportController extends Controller
             $startDate = Carbon::now()->startOfYear();
             $endDate = Carbon::now()->endOfYear();
         }
+        return [$startDate, $endDate];
+    }
 
-        $orders = Order::with('customer')
+    public function exportExcel(Request $request)
+    {
+        $type = $request->query('type', 'daily');
+        [$startDate, $endDate] = $this->getDateRange($type);
+
+        return Excel::download(new SalesReportExport($startDate, $endDate), "sales_report_{$type}.xlsx");
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $type = $request->query('type', 'daily');
+        [$startDate, $endDate] = $this->getDateRange($type);
+
+        $orders = Order::with('user')
+            ->where('payment_status', 'PAID')
             ->whereBetween('created_at', [$startDate, $endDate])
             ->orderBy('created_at', 'desc')
             ->get();
 
-        // 🌟 ប្រើប្រាស់ View ឈ្មោះ exports.sales_report_pdf ដើម្បីគូរប្លង់ PDF
-        $pdf = Pdf::loadView('exports.sales_report_pdf', [
-            'orders' => $orders,
-            'type'   => $type,
-            'date'   => now()->format('d M Y')
-        ]);
+        $totalRevenue = $orders->sum('grand_total');
+        $totalOrders = $orders->count();
+        $totalDiscounts = $orders->sum('discount_total');
 
-        return $pdf->download("sales_report_{$type}_" . now()->format('Ymd') . ".pdf");
+        $pdf = Pdf::loadView('exports.sales_report', compact('orders', 'type', 'totalRevenue', 'totalOrders', 'totalDiscounts'));
+
+        return $pdf->download("sales_report_{$type}.pdf");
     }
 }
