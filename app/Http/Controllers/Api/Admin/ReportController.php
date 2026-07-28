@@ -42,7 +42,7 @@ class ReportController extends Controller
 
         $totalRevenue = (clone $kpiQuery)->sum('grand_total');
         $totalOrders = (clone $kpiQuery)->count();
-        $totalDiscounts = (clone $kpiQuery)->sum('discount_percent');
+        $totalDiscounts = (clone $kpiQuery)->sum('discount_total');
 
         // រាប់ចំនួនទំនិញលក់ចេញសរុប (Products Sold) ដោយបូកបញ្ជូល quantity ពី Table order_items
         $productsSold = (clone $kpiQuery)->withSum('items', 'quantity')->get()->sum('items_sum_quantity');
@@ -68,7 +68,7 @@ class ReportController extends Controller
                 // 🌟 ដូរពី $order->customer ទៅជា $order->user វិញនៅទីនេះ
                 'customer_name'  => $order->user ? $order->user->name : ($order->shipping_name ?? 'Walk-in Customer'),
 
-                'discount'       => (float) $order->discount_percent,
+                'discount'       => (float) $order->discount_total,
                 'amount'         => (float) $order->grand_total,
                 'payment_status' => $order->payment_status,
             ];

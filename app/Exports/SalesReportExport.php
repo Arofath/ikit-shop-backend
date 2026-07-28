@@ -51,7 +51,7 @@ class SalesReportExport implements FromCollection, WithHeadings, WithMapping, Sh
             $order->created_at->format('d M Y, H:i'),
             $order->order_number,
             $order->customer ? $order->customer->name : ($order->shipping_name ?? 'Walk-in Customer'),
-            $order->discount_percent,
+            $order->discount_total,
             $order->grand_total,
             $order->payment_status,
             $order->status,
