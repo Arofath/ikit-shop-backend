@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\Admin\OrderController;
 use App\Http\Controllers\Api\Admin\PosController;
 use App\Http\Controllers\Api\Admin\ReportController;
 use App\Http\Controllers\Api\Admin\SystemController;
+use App\Http\Controllers\Api\Admin\WarrantyCheckController;
 use App\Http\Controllers\Api\Auth\GoogleAuthController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
@@ -144,6 +145,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
 
         // Warranties
         Route::apiResource('warranties', WarrantyController::class);
+        Route::get('/warranty-check', [WarrantyCheckController::class, 'check']);
 
         // Products & Sub-resources
         Route::prefix('products')->group(function () {
