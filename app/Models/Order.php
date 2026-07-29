@@ -27,6 +27,7 @@ class Order extends Model
         'payment_status',
         'payment_method',
         'payment_receipt',
+        "payment_note",
         'note',
     ];
 

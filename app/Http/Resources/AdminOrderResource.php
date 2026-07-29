@@ -38,6 +38,7 @@ class AdminOrderResource extends JsonResource
                     ? $this->payment_receipt
                     : Storage::url($this->payment_receipt))
                 : null,
+            'payment_note' => $this->payment_note,
             'note'             => $this->note,
 
             'created_at'       => $this->created_at->format('Y-m-d H:i:s'),

@@ -242,6 +242,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
             Route::put('/{id}/payment-status', [OrderController::class, 'updatePaymentStatus']);
             Route::post('/{id}/fulfill-serials', [OrderController::class, 'fulfillOrderSerials']);
+            Route::post('/{id}/reject-receipt', [OrderController::class, 'rejectPaymentReceipt']);
 
         });
 

@@ -371,4 +371,37 @@ class OrderController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * មុខងារបដិសេធវិក្កយបត្របង់ប្រាក់ (Reject Receipt)
+     */
+    public function rejectPaymentReceipt(Request $request, $id)
+    {
+        // តម្រូវឱ្យ Admin វាយបញ្ចូលមូលហេតុចាំបាច់
+        $request->validate([
+            'payment_note' => 'required|string|max:1000'
+        ]);
+
+        $order = Order::findOrFail($id);
+
+        // ការពារកុំឱ្យច្រឡំចុច Reject លើវិក្កយបត្រដែលទូទាត់រួច
+        if ($order->payment_status === 'PAID') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot reject receipt. Order is already marked as PAID.'
+            ], 400);
+        }
+
+        // អាប់ដេតស្ថានភាព និងរក្សាទុកមូលហេតុដែលបដិសេធ
+        $order->payment_status = 'INVALID_RECEIPT';
+        $order->payment_note = $request->payment_note;
+        $order->save();
+
+        // 🌟 នៅថ្ងៃក្រោយ អ្នកអាចបន្ថែមការបាញ់ Notification ទៅកាន់អតិថិជននៅត្រង់ចំណុចនេះបាន
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment receipt has been rejected.',
+        ]);
+    }
 }
