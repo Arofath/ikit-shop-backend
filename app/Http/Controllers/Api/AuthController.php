@@ -382,11 +382,21 @@ class AuthController extends Controller
 
         $user = $request->user();
 
+        // 🌟 បន្ថែម៖ ទប់ស្កាត់គណនី Social Login ដែលគ្មានលេខសម្ងាត់ដើម
+        if (empty($user->password)) {
+            return $this->sendError('Your account is linked with Google and does not have a password to change.', [], 400);
+        }
+
         if (!Hash::check($request->current_password, $user->password)) {
             return $this->sendError('Current password is incorrect.', [], 422);
         }
 
-        $user->update(['password' => Hash::make($request->new_password)]); // កុំភ្លេច Hash password ថ្មី!
+        // 🌟 ស្រេចចិត្ត៖ ការពារកុំឱ្យគេប្តូរលេខសម្ងាត់ថ្មី ដូចលេខសម្ងាត់ចាស់
+        if (Hash::check($request->new_password, $user->password)) {
+            return $this->sendError('New password cannot be the same as your current password.', [], 422);
+        }
+
+        $user->update(['password' => Hash::make($request->new_password)]);
 
         return $this->sendResponse([], 'Password updated successfully.', 200);
     }
