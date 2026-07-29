@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class OrderResource extends JsonResource
 {
@@ -27,7 +28,11 @@ class OrderResource extends JsonResource
             'status'           => $this->status,
             'payment_status'   => $this->payment_status,
             'payment_method'   => $this->payment_method,
-            'payment_receipt'  => $this->payment_receipt,
+            'payment_receipt' => $this->payment_receipt
+                ? (filter_var($this->payment_receipt, FILTER_VALIDATE_URL)
+                    ? $this->payment_receipt
+                    : Storage::url($this->payment_receipt))
+                : null,
             'note'             => $this->note,
 
             'created_at'       => $this->created_at->format('Y-m-d H:i:s'),
