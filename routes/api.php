@@ -128,6 +128,12 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::delete('/{id}', [UserManagementController::class, 'destroy']);
         });
 
+        Route::prefix('me')->group(function () {
+            Route::get('/profile', [UserProfileController::class, 'show']);
+            Route::put('/profile', [UserProfileController::class, 'update']);
+            Route::post('/profile/image', [UserProfileController::class, 'uploadImage']);
+        });
+
         // Categories
         Route::put('/categories/reorder', [CategoryController::class, 'reorder']);
         Route::apiResource('categories', CategoryController::class);
