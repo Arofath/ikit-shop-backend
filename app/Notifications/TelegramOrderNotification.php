@@ -75,11 +75,11 @@ class TelegramOrderNotification extends Notification
             ->line("*ស្ថានភាព (Status):* " . $paymentStatus);
 
         // 🌟 ៤. ដោះស្រាយបញ្ហា URL សម្រាប់ប៊ូតុង
-        if (str_contains($adminOrderUrl, 'localhost')) {
-            $telegramMessage->line("\n🔗 *Link សម្រាប់ Admin:* \n`" . $adminOrderUrl . "`");
-        } else {
-            $telegramMessage->button('👉 ចុចទីនេះដើម្បីចាត់ចែង (View Order)', $adminOrderUrl);
-        }
+        // if (str_contains($adminOrderUrl, 'localhost')) {
+        //     $telegramMessage->line("\n🔗 *Link សម្រាប់ Admin:* \n`" . $adminOrderUrl . "`");
+        // } else {
+        //     $telegramMessage->button('👉 ចុចទីនេះដើម្បីចាត់ចែង (View Order)', $adminOrderUrl);
+        // }
 
         return $telegramMessage;
     }
