@@ -26,6 +26,12 @@ class ProductController extends Controller
     // ១. ទាញបញ្ជីផលិតផល (Admin & Public)
     public function index(Request $request)
     {
+        $stockSubquery = function ($query) {
+            $query->selectRaw("COALESCE(SUM(CASE WHEN type IN ('IN', 'ADJUST') THEN quantity WHEN type = 'OUT' THEN -quantity ELSE 0 END), 0)")
+                ->from('product_stock_movements')
+                ->whereColumn('product_stock_movements.product_id', 'products.id');
+        };
+
         $products = Product::query()
             ->select('products.*')
             ->selectSub(function ($query) {
@@ -63,6 +69,13 @@ class ProductController extends Controller
                         $query->where('discount_percent', '<=', 0)
                             ->orWhereNull('discount_percent');
                     });
+                }
+            })
+            ->when($request->filled('stock_status'), function ($q) use ($request, $stockSubquery) {
+                if ($request->stock_status === 'in_stock') {
+                    $q->where($stockSubquery, '>', 0); // ទំនិញដែលមានស្តុក
+                } elseif ($request->stock_status === 'out_of_stock') {
+                    $q->where($stockSubquery, '<=', 0); // ទំនិញដែលអស់ស្តុក
                 }
             })
 
