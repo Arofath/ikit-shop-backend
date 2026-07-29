@@ -134,6 +134,8 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::post('/profile/image', [UserProfileController::class, 'uploadImage']);
         });
 
+        Route::post('/change-password', [AuthController::class, 'changePassword']);
+
         // Categories
         Route::put('/categories/reorder', [CategoryController::class, 'reorder']);
         Route::apiResource('categories', CategoryController::class);
