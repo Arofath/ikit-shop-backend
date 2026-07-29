@@ -21,6 +21,10 @@ class AdminOrderResource extends JsonResource
                 'email' => $this->user->email ?? 'N/A',
                 'phone' => $this->user->phone ?? 'N/A',
             ],
+            'creator'          => [
+                'id'   => $this->creator->id ?? null,
+                'name' => $this->creator->name ?? 'System',
+            ],
 
             'shipping_name'    => $this->shipping_name,
             'shipping_phone'   => $this->shipping_phone,

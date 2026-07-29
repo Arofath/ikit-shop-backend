@@ -233,6 +233,7 @@ class PosController extends Controller
             $order = Order::create([
                 'order_number'     => $orderNumber,
                 'user_id'          => $request->user_id,
+                'created_by'       => $request->user()->id,
                 'shipping_name'    => $customerName,
                 'shipping_phone'   => $request->shipping_phone,
                 'city'             => $request->city,

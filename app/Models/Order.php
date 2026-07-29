@@ -14,6 +14,7 @@ class Order extends Model
     protected $fillable = [
         'order_number',
         'user_id',
+        'created_by',
         'address_id',
         'shipping_name',
         'shipping_phone',
@@ -47,5 +48,10 @@ class Order extends Model
     public function payment()
     {
         return $this->hasOne(Payment::class);
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 }
