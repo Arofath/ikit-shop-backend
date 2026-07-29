@@ -17,9 +17,18 @@ class ProductSerialController extends Controller
     {
         $query = ProductSerial::with(['product', 'stockMovement.supplier', 'soldMovement']);
 
-        // ស្វែងរកតាម Serial Number (សម្រាប់ Scan)
+        // 🌟 ស្វែងរកតាម Serial Number ឬ ឈ្មោះ Product
         if ($request->filled('search')) {
-            $query->where('serial_number', 'LIKE', "%{$request->search}%");
+            $search = $request->search;
+
+            $query->where(function ($q) use ($search) {
+                // ស្វែងរកក្នុងតារាង product_serials ផ្ទាល់
+                $q->where('serial_number', 'LIKE', "%{$search}%")
+                    // ឬ ស្វែងរកឆ្លងតារាងទៅកាន់ products
+                    ->orWhereHas('product', function ($productQuery) use ($search) {
+                        $productQuery->where('name', 'LIKE', "%{$search}%");
+                    });
+            });
         }
 
         // Filter តាមស្ថានភាព (AVAILABLE, SOLD, DEFECTIVE, RETURNED)
