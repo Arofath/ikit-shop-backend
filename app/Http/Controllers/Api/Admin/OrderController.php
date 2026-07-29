@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\ProductSerial;
 use App\Models\ProductStockMovement;
 use App\Notifications\OrderStatusUpdatedNotification;
+use App\Notifications\ReceiptRejectedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -377,14 +378,12 @@ class OrderController extends Controller
      */
     public function rejectPaymentReceipt(Request $request, $id)
     {
-        // តម្រូវឱ្យ Admin វាយបញ្ចូលមូលហេតុចាំបាច់
         $request->validate([
             'payment_note' => 'required|string|max:1000'
         ]);
 
         $order = Order::findOrFail($id);
 
-        // ការពារកុំឱ្យច្រឡំចុច Reject លើវិក្កយបត្រដែលទូទាត់រួច
         if ($order->payment_status === 'PAID') {
             return response()->json([
                 'success' => false,
@@ -392,12 +391,14 @@ class OrderController extends Controller
             ], 400);
         }
 
-        // អាប់ដេតស្ថានភាព និងរក្សាទុកមូលហេតុដែលបដិសេធ
         $order->payment_status = 'INVALID_RECEIPT';
         $order->payment_note = $request->payment_note;
         $order->save();
 
-        // 🌟 នៅថ្ងៃក្រោយ អ្នកអាចបន្ថែមការបាញ់ Notification ទៅកាន់អតិថិជននៅត្រង់ចំណុចនេះបាន
+        // 🌟 ភ្ជាប់ Notification ត្រង់នេះ៖ បាញ់ដំណឹងទៅកាន់ម្ចាស់ Order
+        if ($order->user) {
+            $order->user->notify(new ReceiptRejectedNotification($order, $request->payment_note));
+        }
 
         return response()->json([
             'success' => true,
