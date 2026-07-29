@@ -11,6 +11,7 @@ use App\Models\ProductStockMovement;
 use App\Models\User;
 use App\Notifications\NewOrderNotification;
 use App\Notifications\TelegramOrderNotification;
+use App\Services\CloudinaryStorageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -30,6 +31,13 @@ class OrderController extends Controller
             'shipping_address' => 'required|string',
             'payment_method'   => 'required|in:CASH_ON_DELIVERY,BANK_TRANSFER',
         ]);
+
+        if ($request->payment_method === 'CASH_ON_DELIVERY' && strtolower(trim($request->city)) !== 'phnom penh') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cash on Delivery (COD) is only available in Phnom Penh.'
+            ], 400); // 400 Bad Request
+        }
 
         $user = $request->user();
         $cart = Cart::with('items.product')->where('user_id', $user->id)->first();
@@ -110,7 +118,6 @@ class OrderController extends Controller
         return ($cityName === 'phnom penh') ? 2.00 : 2.50;
     }
 
-    //ឆែកស្តុក កាត់ស្តុក និងរៀបចំទិន្នន័យទំនិញ
     // ឆែកស្តុក កាត់ស្តុក និងរៀបចំទិន្នន័យទំនិញ
     private function processCartItems($cartItems, $orderNumber)
     {
@@ -158,8 +165,8 @@ class OrderController extends Controller
         }
 
         return [
-            'subtotal'         => $originalSubtotal,     // 🌟 ផ្ញើតម្លៃដើមពេញ ($19.00)
-            'discount_total'   => $totalDiscountAmount,  // 🌟 ផ្ញើទឹកប្រាក់ចុះតម្លៃសរុប ($1.90)
+            'subtotal'         => $originalSubtotal,    
+            'discount_total'   => $totalDiscountAmount, 
             'items_data'       => $orderItemsData
         ];
     }
@@ -230,5 +237,68 @@ class OrderController extends Controller
             'message' => 'Order details fetched successfully.',
             'data'    => new OrderResource($order)
         ], 200);
+    }
+
+    /**
+     * មុខងារ Upload រូបភាពវិក្កយបត្របង់ប្រាក់ តាមរយៈ Cloudinary
+     */
+    public function uploadReceipt(Request $request, string $id, CloudinaryStorageService $cloudinaryService)
+    {
+        // ១. ត្រួតពិនិត្យថា File ដែលបញ្ជូនមកជារូបភាព និងទំហំមិនលើស 5MB
+        $request->validate([
+            'receipt' => 'required|image|mimes:jpeg,png,jpg|max:5120',
+        ]);
+
+        // ២. ស្វែងរក Order នោះ និងត្រូវប្រាកដថាវាជារបស់ User នេះផ្ទាល់
+        $order = Order::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->first();
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found or unauthorized.'
+            ], 404);
+        }
+
+        // ៣. អនុញ្ញាតឱ្យ Upload តែ Order ណាដែលប្រើ BANK_TRANSFER ទេ
+        if ($order->payment_method !== 'BANK_TRANSFER') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Receipt upload is only required for Bank Transfer.'
+            ], 400);
+        }
+
+        // ៤. ដំណើរការរក្សាទុករូបភាពទៅកាន់ Cloudinary
+        if ($request->hasFile('receipt')) {
+            try {
+                // 🌟 ប្រើ Service Cloudinary ដើម្បី Upload និងលុបរូបចាស់ដោយស្វ័យប្រវត្តិ
+                $secureUrl = $cloudinaryService->uploadImage(
+                    $request->file('receipt'),
+                    'receipts',                 // ឈ្មោះ Folder នៅក្នុង Cloudinary
+                    $order->payment_receipt     // បោះ URL រូបចាស់ទៅឱ្យវាលុប (បើមាន)
+                );
+
+                // រក្សាទុក URL ពេញលេញដែល Cloudinary ផ្តល់ឱ្យ ចូលទៅក្នុង Database
+                $order->payment_receipt = $secureUrl;
+                $order->save();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Payment receipt uploaded successfully.',
+                    'receipt_url' => $secureUrl // ត្រឡប់ URL ពេញទៅអោយ Frontend បង្ហាញ
+                ], 200);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to upload receipt to Cloudinary: ' . $e->getMessage()
+                ], 500);
+            }
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'No file uploaded.'
+        ], 400);
     }
 }

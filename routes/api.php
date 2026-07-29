@@ -93,6 +93,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::get('/', [PublicOrderController::class, 'index']); // មើលប្រវត្តិទិញ
         Route::post('/checkout', [PublicOrderController::class, 'store']); // បញ្ជាទិញ
         Route::get('/{id}', [PublicOrderController::class, 'show']); // មើលវិក្កយបត្រលម្អិត
+        Route::post('/{id}/upload-receipt', [PublicOrderController::class, 'uploadReceipt']);
     });
 
     // Addresses

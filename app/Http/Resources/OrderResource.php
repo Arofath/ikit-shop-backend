@@ -27,6 +27,7 @@ class OrderResource extends JsonResource
             'status'           => $this->status,
             'payment_status'   => $this->payment_status,
             'payment_method'   => $this->payment_method,
+            'payment_receipt'  => $this->payment_receipt,
             'note'             => $this->note,
 
             'created_at'       => $this->created_at->format('Y-m-d H:i:s'),
