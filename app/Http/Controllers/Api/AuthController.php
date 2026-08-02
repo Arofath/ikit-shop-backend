@@ -293,7 +293,6 @@ class AuthController extends Controller
 
             $data = ['expires_in' => self::OTP_EXPIRY_TEXT];
             return $this->sendResponse($data, 'A new OTP has been sent.', 200);
-            
         });
     }
 
@@ -318,7 +317,11 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        // 🌟 ទប់ស្កាត់គណនី Social Login (Google)
+        // 🌟 បន្ថែមថ្មី៖ បិទមិនឱ្យ Admin ប្រើប្រាស់ Route របស់ Customer
+        if (in_array($user->role, ['admin', 'super_admin'])) {
+            return $this->sendError('Please use the admin portal to reset your password.', [], 403);
+        }
+
         if (empty($user->password)) {
             return $this->sendError(
                 'Your account is linked with Google. Please return to the login page and click "Continue with Google".',
@@ -328,11 +331,7 @@ class AuthController extends Controller
         }
 
         return DB::transaction(function () use ($user) {
-
-            // ១. បង្កើត OTP ថ្មី ដោយប្រើ Helper Method ដែលមានស្រាប់
             $otpCode = $this->generateAndSaveOtp($user, 'password_reset');
-
-            // ២. ផ្ញើ Email ទៅកាន់អតិថិជនតែម្តង (គ្មានការ Bypass ទៀតទេ)
             Mail::to($user->email)->send(new ForgotPasswordOtpMail($otpCode));
 
             $data = ['expires_in' => self::OTP_EXPIRY_TEXT];
@@ -342,33 +341,29 @@ class AuthController extends Controller
 
     public function resetPassword(Request $request)
     {
-        // 🌟 ទាមទារទាំង OTP និង លេខសម្ងាត់ថ្មី
         $request->validate([
             'email' => 'required|email|exists:users,email',
             'otp_code' => 'required|string|size:6',
-            'password' => 'required|string|min:8|confirmed', // ត្រូវមាន password_confirmation បោះមកពី Frontend
+            'password' => 'required|string|min:8|confirmed',
         ]);
 
         $user = User::where('email', $request->email)->first();
 
-        // 🌟 ផ្ទៀងផ្ទាត់ OTP ដោយហៅ Helper Method របស់អ្នក
+        // 🌟 បន្ថែមថ្មី៖ បិទមិនឱ្យ Admin ប្រើប្រាស់ Route របស់ Customer
+        if (in_array($user->role, ['admin', 'super_admin'])) {
+            return $this->sendError('Unauthorized access.', [], 403);
+        }
+
         $validation = $this->validateOtpProcess($user, $request->otp_code, 'password_reset');
 
-        // បើ OTP ខុស ហួសកំណត់ ឬវាយខុសលើស៥ដង វានឹង Return Error
         if (!$validation['isValid']) {
             return $this->sendError($validation['message'], [], $validation['status']);
         }
 
         return DB::transaction(function () use ($user, $validation, $request) {
-            // ក. កត់ចំណាំថា OTP នេះត្រូវបានប្រើប្រាស់រួចហើយ
             $validation['otp']->update(['is_used' => true]);
+            $user->update(['password' => Hash::make($request->password)]);
 
-            // ខ. កំណត់លេខសម្ងាត់ថ្មីចូល Database ភ្លាមៗ
-            $user->update([
-                'password' => Hash::make($request->password)
-            ]);
-
-            // គ. បោះសារជោគជ័យ
             return $this->sendResponse([], 'Your password has been successfully reset. You can now log in with your new password.', 200);
         });
     }
@@ -399,5 +394,71 @@ class AuthController extends Controller
         $user->update(['password' => Hash::make($request->new_password)]);
 
         return $this->sendResponse([], 'Password updated successfully.', 200);
+    }
+
+    // ==========================================
+    // 🛡️ ADMIN PASSWORD RESET METHODS
+    // ==========================================
+
+    public function adminForgotPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        // 🌟 ១. ពិនិត្យ Role: អនុញ្ញាតតែ Admin & Super Admin ប៉ុណ្ណោះ
+        if (!in_array($user->role, ['admin', 'super_admin'])) {
+            return $this->sendError('Unauthorized access. This endpoint is for administrators only.', [], 403);
+        }
+
+        if (empty($user->password)) {
+            return $this->sendError(
+                'Your account is linked with Google. Please contact Super Admin for assistance.',
+                ['is_social_login' => true],
+                400
+            );
+        }
+
+        return DB::transaction(function () use ($user) {
+            // 🌟 ២. ប្រើគោលបំណងថ្មី 'admin_password_reset' ដើម្បីកុំឱ្យច្រឡំជាមួយ Customer
+            $otpCode = $this->generateAndSaveOtp($user, 'admin_password_reset');
+
+            // ផ្ញើ Email (អ្នកអាចបង្កើត AdminForgotPasswordOtpMail ថ្មីមួយទៀតនៅថ្ងៃក្រោយបើចង់រចនា Template ផ្សេង)
+            Mail::to($user->email)->send(new ForgotPasswordOtpMail($otpCode));
+
+            $data = ['expires_in' => self::OTP_EXPIRY_TEXT];
+            return $this->sendResponse($data, 'Admin password reset OTP has been sent to your email.', 200);
+        });
+    }
+
+    public function adminResetPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+            'otp_code' => 'required|string|size:6',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!in_array($user->role, ['admin', 'super_admin'])) {
+            return $this->sendError('Unauthorized access.', [], 403);
+        }
+
+        // 🌟 ៣. ផ្ទៀងផ្ទាត់ OTP ជាមួយនឹងគោលបំណង 'admin_password_reset'
+        $validation = $this->validateOtpProcess($user, $request->otp_code, 'admin_password_reset');
+
+        if (!$validation['isValid']) {
+            return $this->sendError($validation['message'], [], $validation['status']);
+        }
+
+        return DB::transaction(function () use ($user, $validation, $request) {
+            $validation['otp']->update(['is_used' => true]);
+            $user->update(['password' => Hash::make($request->password)]);
+
+            return $this->sendResponse([], 'Admin password has been successfully reset. You can now log in securely.', 200);
+        });
     }
 }

@@ -41,6 +41,11 @@ Route::prefix('auth/google')->group(function () {
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
+Route::prefix('admin')->group(function () {
+    Route::post('/forgot-password', [AuthController::class, 'adminForgotPassword']);
+    Route::post('/reset-password', [AuthController::class, 'adminResetPassword']);
+});
+
 Route::prefix('products')->group(function () {
     Route::get('/suggestions', [ProductController::class, 'suggestions']);
     Route::get('/', [ProductController::class, 'storefrontIndex']);
