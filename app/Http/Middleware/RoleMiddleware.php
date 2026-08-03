@@ -13,7 +13,7 @@ class RoleMiddleware
      *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
-    public function handle(Request $request, Closure $next, ...$roles): Response
+    public function handle(Request $request, Closure $next, string $role): Response
     {
         $user = $request->user();
 
@@ -21,18 +21,20 @@ class RoleMiddleware
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
-        /**
-         * ប្រសិនបើគាត់ជា Super Admin (Email ត្រូវ) 
-         * គាត់អាចចូលបានគ្រប់ Route ទាំងអស់ដែលមានជាប់ Middleware Role នេះ
-         */
+        // ប្រសិនបើគាត់ជា Super Admin (តាមរយៈ Method របស់អ្នក) អនុញ្ញាតឱ្យចូលដោយស្វ័យប្រវត្តិ
         if ($user->isSuperAdmin()) {
             return $next($request);
         }
 
-        // សម្រាប់ Admin ធម្មតា ឬ Customer គឺឆែកតាម Column role ក្នុង DB ធម្មតា
-        if (!in_array($user->role, $roles)) {
+        // 🌟 បំបែកអក្សរ 'admin|super_admin' ទៅជា Array ['admin', 'super_admin']
+        $roles = is_array($role) ? $role : explode('|', $role);
+
+        // 🌟 ប្រើប្រាស់មុខងារ hasAnyRole របស់ Spatie ដើម្បីឆែកមើលសិទ្ធិ
+        // ឬ ប្រើការឆែក Column ចាស់ (ទុកទាំងពីរដើម្បីការពារក្រែងលោ Spatie អត់ទាន់ដើរស្រួល)
+        if (!$user->hasAnyRole($roles) && !in_array($user->role, $roles)) {
             return response()->json([
-                'message' => 'Forbidden. You do not have permission.'
+                'success' => false,
+                'message' => 'Forbidden. You do not have permission to access this resource.'
             ], 403);
         }
 

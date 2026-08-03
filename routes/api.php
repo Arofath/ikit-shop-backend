@@ -38,14 +38,17 @@ Route::prefix('auth/google')->group(function () {
     Route::get('/callback', [GoogleAuthController::class, 'callback']);
 });
 
+// Password Reset (Customer)
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
+// Password Reset (Admin)
 Route::prefix('admin')->group(function () {
     Route::post('/forgot-password', [AuthController::class, 'adminForgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'adminResetPassword']);
 });
 
+// Storefront & Public Data
 Route::prefix('products')->group(function () {
     Route::get('/suggestions', [ProductController::class, 'suggestions']);
     Route::get('/', [ProductController::class, 'storefrontIndex']);
@@ -56,26 +59,30 @@ Route::prefix('products')->group(function () {
 
 Route::get('/categories', [CategoryController::class, 'storefrontIndex']);
 Route::get('/brands', [BrandController::class, 'storefrontIndex']);
-
-// Home Page Data (Recommended + New Arrivals)
 Route::get('/home', [HomeController::class, 'index']);
-
-// Contact Us
 Route::post('/contacts', [CustomerContactController::class, 'store']);
-
 Route::get('/warranty-check', [PublicWarrantyController::class, 'check']);
 
+
 // =============================================================
-// 2. PROTECTED ROUTES (Logged-in Users)
+// 2. PROTECTED ROUTES (Logged-in Users: Both Admin & Customer)
 // =============================================================
 Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/change-password', [AuthController::class, 'changePassword']); // រួមគ្នា
 
-    // User profile
+    // User Profile (រួបរួម Admin និង Customer ព្រោះទិន្នន័យដូចគ្នា)
     Route::prefix('me')->group(function () {
         Route::get('/profile', [UserProfileController::class, 'show']);
         Route::put('/profile', [UserProfileController::class, 'update']);
         Route::post('/profile/image', [UserProfileController::class, 'uploadImage']);
+    });
+
+    // Notifications (រួបរួម Admin និង Customer)
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'index']);
+        Route::patch('/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::post('/read-all', [NotificationController::class, 'markAllAsRead']);
     });
 
     // Cart Routes
@@ -93,11 +100,11 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::post('/toggle', [FavoriteController::class, 'toggle']);
     });
 
-    // Order & Checkout Routes 
+    // Order & Checkout Routes (Customer View)
     Route::prefix('orders')->group(function () {
-        Route::get('/', [PublicOrderController::class, 'index']); // មើលប្រវត្តិទិញ
-        Route::post('/checkout', [PublicOrderController::class, 'store']); // បញ្ជាទិញ
-        Route::get('/{id}', [PublicOrderController::class, 'show']); // មើលវិក្កយបត្រលម្អិត
+        Route::get('/', [PublicOrderController::class, 'index']);
+        Route::post('/checkout', [PublicOrderController::class, 'store']);
+        Route::get('/{id}', [PublicOrderController::class, 'show']);
         Route::post('/{id}/upload-receipt', [PublicOrderController::class, 'uploadReceipt']);
     });
 
@@ -109,22 +116,20 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::delete('/{id}', [AddressController::class, 'destroy']);
     });
 
-    Route::prefix('notifications')->group(function () {
-        Route::get('/', [NotificationController::class, 'index']);
-        Route::patch('/{id}/read', [NotificationController::class, 'markAsRead']);
-        Route::post('/read-all', [NotificationController::class, 'markAllAsRead']);
-    });
-
-
 
     // =============================================================
     // 3. ADMIN ONLY ROUTES (Super Admin & Admins)
     // =============================================================
-    Route::middleware('role:admin')->prefix('admin')->group(function () {
+    // 🌟 កែប្រែ៖ អនុញ្ញាតឱ្យទាំង admin និង super_admin ឆ្លងកាត់ Middleware នេះបាន
+    Route::middleware('role:admin|super_admin')->prefix('admin')->group(function () {
+
+        // Security Settings
         Route::post('/toggle-2fa', [AuthController::class, 'toggle2FA']);
+
         // Dashboard Data
         Route::get('/dashboard', [DashboardController::class, 'index']);
-        // User Management
+
+        // User Management (នៅពេលអនាគត អ្នកអាចដាក់ middleware('can:manage-users') នៅទីនេះ)
         Route::prefix('users')->group(function () {
             Route::post('/', [UserManagementController::class, 'store']);
             Route::get('/', [UserManagementController::class, 'index']);
@@ -134,18 +139,11 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::delete('/{id}', [UserManagementController::class, 'destroy']);
         });
 
-        Route::prefix('me')->group(function () {
-            Route::get('/profile', [UserProfileController::class, 'show']);
-            Route::put('/profile', [UserProfileController::class, 'update']);
-            Route::post('/profile/image', [UserProfileController::class, 'uploadImage']);
-        });
-
-        Route::post('/change-password', [AuthController::class, 'changePassword']);
-
         // Categories
         Route::put('/categories/reorder', [CategoryController::class, 'reorder']);
         Route::apiResource('categories', CategoryController::class);
         Route::post('categories/{category}/upload-image', [CategoryController::class, 'uploadImage']);
+
         // Brands
         Route::put('/brands/reorder', [BrandController::class, 'reorder']);
         Route::apiResource('brands', BrandController::class);
@@ -170,22 +168,16 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::get('/stats', [ProductController::class, 'getStats']);
             Route::get('/{id}', [ProductController::class, 'show']);
             Route::put('/{id}', [ProductController::class, 'update']);
-            Route::delete('/{id}', [ProductController::class, 'destroy']); // Soft Delete
+            Route::delete('/{id}', [ProductController::class, 'destroy']);
 
-            // មុខងារបន្ថែមសម្រាប់ Soft Deletes (Trash Management)
-            Route::get('/trash/all', [ProductController::class, 'trash']); // មើលផលិតផលក្នុង Trash
-            Route::patch('/{id}/restore', [ProductController::class, 'restore']); // យកចេញពី Trash
-            Route::delete('/{id}/force', [ProductController::class, 'forceDelete']); // លុបដាច់ពី System
+            // Soft Deletes (Trash Management)
+            Route::get('/trash/all', [ProductController::class, 'trash']);
+            Route::patch('/{id}/restore', [ProductController::class, 'restore']);
+            Route::delete('/{id}/force', [ProductController::class, 'forceDelete']);
 
-            // Stock for specific product
             Route::get('/{product}/stock', [ProductStockMovementController::class, 'productStock']);
-
-            // Images
             Route::post('/{product}/images', [ProductImageController::class, 'store']);
-
-            // Specs
             Route::post('/{product}/specs/sync', [ProductSpecController::class, 'sync']);
-            // Route::get('/{product}/specs', [ProductSpecController::class, 'index']);
         });
         Route::post('/ai/generate-description', [AIGeneratorController::class, 'generateDescription']);
 
@@ -197,20 +189,16 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
 
         // Stock Movement Routes
         Route::prefix('stock-movements')->group(function () {
-            Route::get('/', [ProductStockMovementController::class, 'index']);      // មើលប្រវត្តិស្តុកទាំងអស់
-            Route::post('/', [ProductStockMovementController::class, 'store']);     // បញ្ចូលស្តុក (IN/OUT/ADJUST)
+            Route::get('/', [ProductStockMovementController::class, 'index']);
+            Route::post('/', [ProductStockMovementController::class, 'store']);
 
-            // 🌟 ត្រូវដាក់ Route ពិសេស (Static Route) នៅពីលើ Route ដែលមាន {id} ជានិច្ច
             Route::get('/report', [ProductStockMovementController::class, 'stockReport']);
             Route::get('/pending-serials', [ProductStockMovementController::class, 'pendingSerials']);
             Route::post('/resolve-pending-serials', [ProductStockMovementController::class, 'resolvePendingSerials']);
 
-            Route::get('/{id}', [ProductStockMovementController::class, 'show']);   // មើលព័ត៌មានលម្អិត ១ record
-
-            // លុបបានតែ record ចុងក្រោយ (សម្រាប់តែ Super Admin)
+            Route::get('/{id}', [ProductStockMovementController::class, 'show']);
             Route::delete('/{productStockMovement}', [ProductStockMovementController::class, 'destroy']);
         });
-        // មុខងារបន្ថែមសម្រាប់ឆែកស្តុកតាមផលិតផលនីមួយៗ
         Route::get('products/{product}/stock', [ProductStockMovementController::class, 'productStock']);
 
         // Product Serials
@@ -229,13 +217,10 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         // Slideshows
         Route::prefix('slideshows')->group(function () {
             Route::post('/reorder', [SlideshowController::class, 'reorder']);
-            Route::get('/', [SlideshowController::class, 'index']);      // មើលបញ្ជី Slide ទាំងអស់
-            Route::post('/', [SlideshowController::class, 'store']);     // បង្កើត Slide ថ្មី (Upload រូបភាព)
-
-            // 🌟 កែប្រែពី put មក post ដើម្បីគាំទ្រការ Upload រូបភាព (Multipart Form Data)
+            Route::get('/', [SlideshowController::class, 'index']);
+            Route::post('/', [SlideshowController::class, 'store']);
             Route::post('/{id}', [SlideshowController::class, 'update']);
-
-            Route::delete('/{id}', [SlideshowController::class, 'destroy']); // លុប Slide
+            Route::delete('/{id}', [SlideshowController::class, 'destroy']);
             Route::patch('/{id}/toggle-status', [SlideshowController::class, 'toggleStatus']);
         });
 
@@ -243,12 +228,11 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::prefix('settings')->group(function () {
             Route::get('/', [SettingController::class, 'index']);
             Route::post('/', [SettingController::class, 'update']);
-        });
-
-        Route::prefix('settings')->group(function () {
             Route::get('/discount-sort', [SettingController::class, 'getDiscountSort']);
             Route::post('/discount-sort', [SettingController::class, 'updateDiscountSort']);
         });
+
+        // Orders (Admin View)
         Route::prefix('orders')->group(function () {
             Route::get('/', [OrderController::class, 'index']);
             Route::get('/{id}', [OrderController::class, 'show']);
@@ -257,22 +241,19 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::put('/{id}/payment-status', [OrderController::class, 'updatePaymentStatus']);
             Route::post('/{id}/fulfill-serials', [OrderController::class, 'fulfillOrderSerials']);
             Route::post('/{id}/reject-receipt', [OrderController::class, 'rejectPaymentReceipt']);
-
         });
 
-        Route::get('/pos/categories', [PosController::class, 'getCategories']);
-        Route::get('/pos/brands', [PosController::class, 'getBrands']);
-        Route::get('/pos/products/search', [PosController::class, 'searchProducts']);
-        Route::get('/pos/users/search', [PosController::class, 'searchUsers']);
-        Route::post('/pos/orders', [PosController::class, 'storeOrder']);
-        Route::post('/pos/check-serial', [PosController::class, 'checkSerial']);
-
-        Route::prefix('notifications')->group(function () {
-            Route::get('/', [NotificationController::class, 'index']);
-            Route::patch('/{id}/read', [NotificationController::class, 'markAsRead']);
-            Route::post('/read-all', [NotificationController::class, 'markAllAsRead']);
+        // POS
+        Route::prefix('pos')->group(function () {
+            Route::get('/categories', [PosController::class, 'getCategories']);
+            Route::get('/brands', [PosController::class, 'getBrands']);
+            Route::get('/products/search', [PosController::class, 'searchProducts']);
+            Route::get('/users/search', [PosController::class, 'searchUsers']);
+            Route::post('/orders', [PosController::class, 'storeOrder']);
+            Route::post('/check-serial', [PosController::class, 'checkSerial']);
         });
 
+        // Contacts (Admin View)
         Route::prefix('contacts')->group(function () {
             Route::get('/', [AdminContactController::class, 'index']);
             Route::get('/{id}', [AdminContactController::class, 'show']);
