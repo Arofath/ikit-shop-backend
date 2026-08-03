@@ -137,6 +137,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
 
         // Sale Staff ត្រូវការមើលផលិតផល និងឆែក Warranty
         Route::get('/products', [ProductController::class, 'index']);
+        Route::get('/products/stats', [ProductController::class, 'getStats']);
         Route::get('/products/{id}', [ProductController::class, 'show']);
         Route::prefix('product-serials')->group(function () {
             Route::get('/', [ProductSerialController::class, 'index']);
@@ -180,7 +181,6 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::prefix('products')->group(function () {
             Route::post('/', [ProductController::class, 'store']);
             Route::put('/reorder', [ProductController::class, 'reorder']);
-            Route::get('/stats', [ProductController::class, 'getStats']);
             Route::put('/{id}', [ProductController::class, 'update']);
             Route::delete('/{id}', [ProductController::class, 'destroy']);
 
