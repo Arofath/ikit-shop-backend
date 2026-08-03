@@ -29,6 +29,7 @@ class User extends Authenticatable
         'is_active',
         'last_login_at',
         'email_verified_at',
+        'is_2fa_enabled',
     ];
 
     protected $hidden = [
