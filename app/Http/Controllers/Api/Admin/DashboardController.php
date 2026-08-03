@@ -27,14 +27,14 @@ class DashboardController extends Controller
 
         if ($isSaleStaff) {
             // កំណត់សិទ្ធិសម្រាប់ Sale Staff
-            $allowedStaffCardRanges = ['today', 'yesterday', 'last_7_days', 'this_month'];
+            $allowedStaffCardRanges = ['today', 'yesterday', 'last_7_days', 'this_month', 'last_month'];
             $cardRange = in_array($requestedCardRange, $allowedStaffCardRanges) ? $requestedCardRange : 'today';
 
             $allowedStaffChartRanges = ['last_7_days', 'this_month'];
             $chartRange = in_array($requestedChartRange, $allowedStaffChartRanges) ? $requestedChartRange : 'this_month';
         } else {
             // កំណត់សិទ្ធិសម្រាប់ Admin
-            $allowedAdminCardRanges = ['today', 'yesterday', 'last_7_days', 'this_month', 'this_year'];
+            $allowedAdminCardRanges = ['today', 'yesterday', 'last_7_days', 'this_month', 'last_month', 'this_year'];
             $cardRange = in_array($requestedCardRange, $allowedAdminCardRanges) ? $requestedCardRange : 'today';
 
             $allowedAdminChartRanges = ['last_7_days', 'this_month', 'last_6_months', 'this_year'];
