@@ -253,27 +253,37 @@ class AuthController extends Controller
 
     public function resendOtp(Request $request)
     {
-        $request->validate(['email' => 'required|email|exists:users,email']);
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+            'purpose' => 'nullable|string|in:register,login' // 🌟 អនុញ្ញាតឱ្យបញ្ជាក់គោលបំណងពី Frontend
+        ]);
 
         $user = User::where('email', $request->email)->first();
+        $purpose = $request->purpose ?? 'register'; // បើមិនបញ្ជាក់ គឺចាត់ទុកជាការ Register
 
-        if ($user->email_verified_at !== null) {
+        // 🌟 បើវាជាការ Register ទើបយើងឆែកមើលថាគណនីបាន Verify ឬនៅ
+        if ($purpose === 'register' && $user->email_verified_at !== null) {
             return $this->sendError('Account already verified.', [], 400);
         }
 
-        $latestOtp = $user->otps()->where('purpose', 'register')->latest()->first();
+        // 🌟 ឆែកការកំណត់ម៉ោងរង់ចាំ ផ្អែកលើគោលបំណង
+        $latestOtp = $user->otps()->where('purpose', $purpose)->latest()->first();
         if ($latestOtp && $latestOtp->created_at->addMinute() > now()) {
             $secondsLeft = 60 - $latestOtp->created_at->diffInSeconds(now());
             return $this->sendError("Please wait {$secondsLeft} seconds.", [], 429);
         }
 
-        return DB::transaction(function () use ($user) {
-            // ហៅប្រើ Helper Method
-            $otpCode = $this->generateAndSaveOtp($user, 'register');
+        return DB::transaction(function () use ($user, $purpose) {
+            $otpCode = $this->generateAndSaveOtp($user, $purpose);
 
             $bypassOtp = env('BYPASS_OTP_ON_LOCAL', false);
             if (!$bypassOtp) {
-                Mail::to($user->email)->send(new RegisterOtpMail($otpCode));
+                // 🌟 ផ្ញើ Email ទៅតាមប្រភេទគោលបំណង
+                if ($purpose === 'login') {
+                    Mail::to($user->email)->send(new AdminLoginOtpMail($otpCode));
+                } else {
+                    Mail::to($user->email)->send(new RegisterOtpMail($otpCode));
+                }
             }
 
             $data = ['expires_in' => self::OTP_EXPIRY_TEXT];

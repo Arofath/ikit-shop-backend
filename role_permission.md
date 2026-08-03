@@ -45,3 +45,9 @@ Vue Router (beforeEach): កំណត់ច្បាប់នៅក្នុង 
 3. model_has_permissions: នេះគឺជាតារាងភ្ជាប់ (Pivot Table) ដែលប្រើសម្រាប់ភ្ជាប់សិទ្ធិ (Permission) ទៅឱ្យ User ណាម្នាក់ដោយផ្ទាល់ ក្នុងករណីដែលអ្នកមិនចង់ផ្តល់សិទ្ធិតាមរយៈ Role។  
 3. model_has_roles: តារាងភ្ជាប់នេះមានតួនាទីប្រាប់ប្រព័ន្ធថា តើ User (ឬ Model) ម្នាក់ៗកំពុងកាន់តួនាទី (Role) អ្វីខ្លះ។  
 4. role_has_permissions: ជាតារាងភ្ជាប់សម្រាប់កំណត់ព្រំដែនថា តួនាទី (Role) នីមួយៗត្រូវបានអនុញ្ញាតឱ្យធ្វើអ្វីខ្លះ (Permissions)។ ឧទាហរណ៍៖ ភ្ជាប់ Role admin ទៅនឹង Permission edit-product។  
+
+----------------------------------------------------------
+ទី៧៖ ការលាក់ និងបង្ហាញប៊ូតុងនៅលើ UI (Frontend) 👁️‍🗨️
+Sale Staff និង Admin អាចមើលទំព័របញ្ជីផលិតផល (Product List) ជាមួយគ្នា តែ Sale Staff មិនគួរឃើញប៊ូតុង "Delete" ឬ "Add New Product" ឡើយ។
+
+ការងារត្រូវធ្វើ: បង្កើត Custom Vue Directive មួយ (ឧទាហរណ៍ v-role="'admin|super_admin'") ដើម្បីលាក់ ឬបង្ហាញធាតុនៅលើអេក្រង់ (UI Elements) ដោយស្វ័យប្រវត្តិ។
