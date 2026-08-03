@@ -16,6 +16,7 @@ class ProductResource extends JsonResource
     {
         // ឆែកថាជា Admin API ឬអត់ ដើម្បីប្តូរ Format រូបភាព
         $isAdmin = $request->user() && in_array($request->user()->role, ['admin', 'super_admin']);
+        $canViewFullDetails = $request->user() && in_array($request->user()->role, ['admin', 'super_admin', 'sale_staff']);
 
         return [
             'id'               => $this->id,
@@ -29,19 +30,19 @@ class ProductResource extends JsonResource
             'description'      => $this->description,
 
             // Thumbnail: បត់បែនតាមអ្នកប្រើប្រាស់
-            'thumbnail' => $this->whenLoaded('thumbnail', function () use ($isAdmin) {
-                if ($isAdmin) {
+            'thumbnail' => $this->whenLoaded('thumbnail', function () use ($canViewFullDetails) {
+                if ($canViewFullDetails && $this->thumbnail) {
                     return [
-                        'id' => $this->thumbnail->id,
+                        'id'  => $this->thumbnail->id,
                         'url' => $this->thumbnail->image_path
                     ];
                 }
-                return $this->thumbnail->image_path;
+                return $this->thumbnail ? $this->thumbnail->image_path : null;
             }),
 
-            //Gallery: បត់បែនតាមអ្នកប្រើប្រាស់
-            'images' => $this->whenLoaded('images', function () use ($isAdmin) {
-                if ($isAdmin) {
+            // Gallery: ប្រើប្រាស់ $canViewFullDetails ដូចគ្នា
+            'images' => $this->whenLoaded('images', function () use ($canViewFullDetails) {
+                if ($canViewFullDetails) {
                     return $this->images->map(fn($img) => [
                         'id'           => $img->id,
                         'url'          => $img->image_path,
