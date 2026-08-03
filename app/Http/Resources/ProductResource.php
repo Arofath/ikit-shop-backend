@@ -15,7 +15,7 @@ class ProductResource extends JsonResource
     public function toArray(Request $request): array
     {
         // ឆែកថាជា Admin API ឬអត់ ដើម្បីប្តូរ Format រូបភាព
-        $isAdmin = $request->is('api/admin/*');
+        $isAdmin = $request->user() && in_array($request->user()->role, ['admin', 'super_admin']);
 
         return [
             'id'               => $this->id,
@@ -23,7 +23,7 @@ class ProductResource extends JsonResource
             'slug'             => $this->slug,
             'sku'              => $this->sku,
             'price'            => (float) $this->price,
-            'cost_price'       => $this->cost_price,
+            'cost_price' => $this->when($isAdmin, $this->cost_price),
             'discount_percent' => (float) $this->discount_percent,
             'final_price'      => (float) ($this->price - ($this->price * ($this->discount_percent / 100))),
             'description'      => $this->description,
