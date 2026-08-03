@@ -15,22 +15,25 @@ class DashboardController extends Controller
 {
     public function index(Request $request)
     {
-        // ==========================================
-        // ១. ចាប់យក Filter Parameters ទាំង ២ ដាច់ពីគ្នា
-        // ==========================================
-        $cardRange = $request->query('card_range', 'this_month'); // Default សម្រាប់ Card គឺ 'this_month'
-        $chartRange = $request->query('chart_range', 'last_6_months'); // Default សម្រាប់ Chart គឺ 'last_6_months'
+        // 🌟 ១. ចាប់យក User បច្ចុប្បន្ន និងឆែកមើលតួនាទី
+        $user = $request->user();
+        $isSaleStaff = $user->role === 'sale_staff';
 
-        // ទាញយកថ្ងៃចាប់ផ្តើម និងថ្ងៃបញ្ចប់ ពីអនុគមន៍ដែលយើងបានបង្កើតនៅខាងក្រោម
+        // ==========================================
+        // ២. ចាប់យក Filter Parameters ទាំង ២ ដាច់ពីគ្នា
+        // ==========================================
+        $cardRange = $request->query('card_range', 'this_month');
+        $chartRange = $request->query('chart_range', 'last_6_months');
+
         [$cardStart, $cardEnd] = $this->getDatesFromRange($cardRange);
         [$chartStart, $chartEnd, $groupBy] = $this->getDatesFromRange($chartRange);
 
         // ==========================================
-        // ២. KPIs (Summary Cards) - គិតលេខតាម $cardRange
+        // ៣. KPIs (Summary Cards) - គិតលេខតាម $cardRange
         // ==========================================
         $summary = [
-            // 🌟 ប្រើ whereHas ដើម្បីឆែកទៅដល់ Table payments
-            'total_revenue'   => Order::whereHas('payment', function ($q) use ($cardStart, $cardEnd) {
+            // 🌟 បិទមិនឱ្យគណនា Revenue ទេ ប្រសិនបើជា Sale Staff (សន្សំកម្លាំង Server ផង និងការពារទិន្នន័យផង)
+            'total_revenue'   => $isSaleStaff ? 0 : Order::whereHas('payment', function ($q) use ($cardStart, $cardEnd) {
                 $q->where('status', 'COMPLETED')
                     ->whereBetween('paid_at', [$cardStart, $cardEnd]);
             })
@@ -44,13 +47,12 @@ class DashboardController extends Controller
         ];
 
         // ==========================================
-        // ៣. Chart Data (Revenue & Orders) - គិតលេខតាម $chartRange
+        // ៤. Chart Data (Revenue & Orders) - គិតលេខតាម $chartRange[cite: 18]
         // ==========================================
-        // ដោយសារ Revenue គិតតាម paid_at រីឯ Orders គិតតាម created_at យើងត្រូវបំបែកជា ២ Query ដាច់ពីគ្នា
         $groupFormat = $groupBy === 'month' ? '"%Y-%m"' : 'DATE(%s)';
         $mysqlFormat = $groupBy === 'month' ? 'DATE_FORMAT(%s, "%%Y-%%m")' : 'DATE(%s)';
 
-        // ៣.១ ទាញទិន្នន័យចំនួន Order (ផ្អែកលើ created_at)
+        // ៤.១ ទាញទិន្នន័យចំនួន Order (Sale Staff ក៏អាចមើលចំនួន Order បាន)[cite: 18]
         $ordersStats = Order::select([
             DB::raw('COUNT(id) as orders_count'),
             DB::raw('SUM(CASE WHEN payment_status = "PAID" THEN 1 ELSE 0 END) as paid_orders_count'),
@@ -61,20 +63,23 @@ class DashboardController extends Controller
             ->get()
             ->keyBy('group_key');
 
-        // ៣.២ ទាញទិន្នន័យចំណូល (ផ្អែកលើ paid_at)
-        $revenueStats = Order::select([
-            DB::raw('SUM(orders.grand_total) as revenue'),
-            DB::raw(sprintf($mysqlFormat, 'payments.paid_at') . ' as group_key')
-        ])
-            // 🌟 JOIN ជាមួយ Table payments
-            ->join('payments', 'orders.id', '=', 'payments.order_id')
-            ->where('orders.payment_status', 'PAID')
-            ->where('payments.status', 'COMPLETED')
-            ->whereNotNull('payments.paid_at')
-            ->whereBetween('payments.paid_at', [$chartStart, $chartEnd])
-            ->groupBy('group_key')
-            ->get()
-            ->keyBy('group_key');
+        // ៤.២ ទាញទិន្នន័យចំណូល (ធ្វើការ Query តែនៅពេលដែល User មិនមែនជា Sale Staff)
+        $revenueStats = collect(); // បង្កើត Collection ទទេទុកជាមុន
+
+        if (!$isSaleStaff) {
+            $revenueStats = Order::select([
+                DB::raw('SUM(orders.grand_total) as revenue'),
+                DB::raw(sprintf($mysqlFormat, 'payments.paid_at') . ' as group_key')
+            ])
+                ->join('payments', 'orders.id', '=', 'payments.order_id')
+                ->where('orders.payment_status', 'PAID')
+                ->where('payments.status', 'COMPLETED')
+                ->whereNotNull('payments.paid_at')
+                ->whereBetween('payments.paid_at', [$chartStart, $chartEnd])
+                ->groupBy('group_key')
+                ->get()
+                ->keyBy('group_key');
+        }
 
         $labels = [];
         $revenue = [];
@@ -93,10 +98,10 @@ class DashboardController extends Controller
                 $currentDate->addDay();
             }
 
-            // ទាញយកទិន្នន័យពី Query ទាំង ២ មកផ្គុំគ្នាបញ្ចូលក្នុង Chart តែមួយ
             $orderStat = $ordersStats->get($key);
             $revStat = $revenueStats->get($key);
 
+            // 🌟 ប្រសិនបើជា Sale Staff តម្លៃ Revenue នឹងក្លាយជា 0 ដោយស្វ័យប្រវត្តិ
             $revenue[] = $revStat ? (float) $revStat->revenue : 0;
             $orders[] = $orderStat ? (int) $orderStat->orders_count : 0;
             $paidOrders[] = $orderStat ? (int) $orderStat->paid_orders_count : 0;
@@ -110,7 +115,7 @@ class DashboardController extends Controller
         ];
 
         // ==========================================
-        // ៤. Sales Activities & Alerts (រក្សាទុកដដែល)
+        // ៥. Sales Activities & Alerts (រក្សាទុកដដែល ព្រោះ Sale Staff ត្រូវការវា)[cite: 18]
         // ==========================================
         $recentOrdersRaw = Order::with('user')->latest()->take(4)->get();
         $recentOrders = $recentOrdersRaw->map(function ($order) {
@@ -163,7 +168,7 @@ class DashboardController extends Controller
         });
 
         // ==========================================
-        // ៥. បញ្ជូនទិន្នន័យទៅ Frontend
+        // ៦. បញ្ជូនទិន្នន័យទៅ Frontend[cite: 18]
         // ==========================================
         return response()->json([
             'success' => true,
@@ -182,9 +187,6 @@ class DashboardController extends Controller
         ]);
     }
 
-    /**
-     * អនុគមន៍ជំនួយ (Helper) សម្រាប់គណនាថ្ងៃខែ ផ្អែកតាម Range
-     */
     private function getDatesFromRange($range)
     {
         $now = Carbon::now();
