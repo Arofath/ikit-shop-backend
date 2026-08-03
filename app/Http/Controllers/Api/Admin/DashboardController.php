@@ -56,7 +56,9 @@ class DashboardController extends Controller
                 ->sum('grand_total'),
 
             'total_orders'    => Order::whereBetween('created_at', [$cardStart, $cardEnd])->count(),
-            'active_customers' => User::where('role', 'customer')->count(),
+            'active_customers' => User::where('role', 'customer')
+                ->whereBetween('created_at', [$cardStart, $cardEnd])
+                ->count(),
             'pending_orders'  => Order::whereBetween('created_at', [$cardStart, $cardEnd])->where('status', 'PENDING')->count(),
             'total_products'  => Product::count(),
         ];
