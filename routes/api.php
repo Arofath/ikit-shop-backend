@@ -139,6 +139,10 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::get('/products', [ProductController::class, 'index']);
         Route::get('/products/stats', [ProductController::class, 'getStats']);
         Route::get('/products/{id}', [ProductController::class, 'show']);
+
+        Route::apiResource('categories', CategoryController::class)->only(['index', 'show']);
+        Route::apiResource('brands', BrandController::class)->only(['index', 'show']);
+
         Route::prefix('product-serials')->group(function () {
             Route::get('/', [ProductSerialController::class, 'index']);
             Route::get('/check-warranty/{serial_number}', [ProductSerialController::class, 'checkWarranty']);
@@ -171,11 +175,11 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
 
         // Manage Product
         Route::put('/categories/reorder', [CategoryController::class, 'reorder']);
-        Route::apiResource('categories', CategoryController::class);
+        Route::apiResource('categories', CategoryController::class)->except(['index', 'show']);
         Route::post('categories/{category}/upload-image', [CategoryController::class, 'uploadImage']);
 
         Route::put('/brands/reorder', [BrandController::class, 'reorder']);
-        Route::apiResource('brands', BrandController::class);
+        Route::apiResource('brands', BrandController::class)->except(['index', 'show']);
         Route::post('brands/{brand}/upload-logo', [BrandController::class, 'uploadLogo']);
 
         Route::prefix('products')->group(function () {
