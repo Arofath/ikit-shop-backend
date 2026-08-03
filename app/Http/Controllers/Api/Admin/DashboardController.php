@@ -56,9 +56,13 @@ class DashboardController extends Controller
                 ->sum('grand_total'),
 
             'total_orders'    => Order::whereBetween('created_at', [$cardStart, $cardEnd])->count(),
-            'active_customers' => User::where('role', 'customer')
-                ->whereBetween('created_at', [$cardStart, $cardEnd])
-                ->count(),
+            // 'active_customers' => User::where('role', 'customer')
+            //     ->whereBetween('created_at', [$cardStart, $cardEnd])
+            //     ->count(),
+            'active_customers' => Order::whereBetween('created_at', [$cardStart, $cardEnd])
+                ->whereNotNull('user_id')
+                ->distinct('user_id')
+                ->count('user_id'), //រាប់អតិថិជនដែល "មានសកម្មភាពទិញ" (True Active Customers)
             'pending_orders'  => Order::whereBetween('created_at', [$cardStart, $cardEnd])->where('status', 'PENDING')->count(),
             'total_products'  => Product::count(),
         ];
