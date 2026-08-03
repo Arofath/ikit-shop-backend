@@ -121,6 +121,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
     // 3. ADMIN ONLY ROUTES (Super Admin & Admins)
     // =============================================================
     Route::middleware('role:admin')->prefix('admin')->group(function () {
+        Route::post('/toggle-2fa', [AuthController::class, 'toggle2FA']);
         // Dashboard Data
         Route::get('/dashboard', [DashboardController::class, 'index']);
         // User Management

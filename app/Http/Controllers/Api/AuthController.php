@@ -172,18 +172,21 @@ class AuthController extends Controller
         if (in_array($user->role, ['admin', 'super_admin'])) {
             $bypassOtp = env('BYPASS_OTP_ON_LOCAL', false);
 
-            if ($bypassOtp) {
-                // 🌟 បន្ថែមខ្លី៖ បើ Bypass ហើយ គួរតែ Update email_verified_at ឱ្យគាត់ផង កុំឱ្យវា null រហូត
+            // 🌟 បន្ថែមថ្មី៖ ឆែកមើលថាតើប្រព័ន្ធ Bypass ត្រូវបានបើក ឬ Admin បានបិទ 2FA ដោយខ្លួនឯងឬទេ
+            if ($bypassOtp || $user->is_2fa_enabled == false) {
+
                 if ($user->email_verified_at === null) {
                     $user->update(['email_verified_at' => now()]);
                 }
 
-                $token = $user->createToken('api_token')->plainTextToken;
+                // 🌟 គួរប្រើ 'admin_api_token' ឱ្យដូចទៅនឹងមុខងារ verifyAdminLogin ដែរ
+                $token = $user->createToken('admin_api_token')->plainTextToken;
+
                 $data = ['user' => new UserResource($user->load('profile')), 'token' => $token];
-                return $this->sendResponse($data, 'Local Testing: Admin 2FA Bypassed. Login successful.', 200);
+                return $this->sendResponse($data, 'Login successful. (2FA Disabled)', 200);
             }
 
-            // ហៅប្រើ Helper Method
+            // ហៅប្រើ Helper Method ប្រសិនបើ 2FA ត្រូវបានបើក
             $otpCode = $this->generateAndSaveOtp($user, 'login');
             Mail::to($user->email)->send(new AdminLoginOtpMail($otpCode));
 
@@ -460,5 +463,34 @@ class AuthController extends Controller
 
             return $this->sendResponse([], 'Admin password has been successfully reset. You can now log in securely.', 200);
         });
+    }
+
+    // ==========================================
+    // 🛡️ SECURITY SETTINGS
+    // ==========================================
+    public function toggle2FA(Request $request)
+    {
+        $request->validate([
+            'is_2fa_enabled' => 'required|boolean',
+        ]);
+
+        $user = $request->user();
+
+        // អនុញ្ញាតឱ្យតែ Admin និង Super Admin ប៉ុណ្ណោះដែលអាចបិទ/បើកមុខងារនេះបាន
+        if (!in_array($user->role, ['admin', 'super_admin'])) {
+            return $this->sendError('Unauthorized to change 2FA settings.', [], 403);
+        }
+
+        $user->update([
+            'is_2fa_enabled' => $request->is_2fa_enabled
+        ]);
+
+        $status = $request->is_2fa_enabled ? 'enabled' : 'disabled';
+
+        return $this->sendResponse(
+            ['is_2fa_enabled' => $user->is_2fa_enabled],
+            "Two-Factor Authentication has been successfully {$status}.",
+            200
+        );
     }
 }
