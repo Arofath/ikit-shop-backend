@@ -1,5 +1,6 @@
 ខាងក្រោមនេះគឺជា ផែនការមេ (Master Plan) ទាំង ៦ ជំហាន ដែលយើងត្រូវធ្វើការកែប្រែទាំងផ្នែក Backend និង Frontend៖
 
+
 ទី១៖ ផ្នែក Backend (Laravel Database & Package)
 ដំឡើង Package: ដំឡើង spatie/laravel-permission តាមរយៈ Composer ។
 
@@ -9,17 +10,11 @@ Setup Database: Run Migration របស់ Spatie ដើម្បីបង្ក
 
 ទី២៖ កំណត់សិទ្ធិមូលដ្ឋាន (Role & Permission Seeding)
 យើងត្រូវបង្កើត Seeder មួយដើម្បីបញ្ចូលទិន្នន័យ (Default Roles & Permissions) ទៅក្នុង Database ជាមុន៖
-
 Permissions (សិទ្ធិលម្អិត): create-product, edit-product, delete-product, view-orders, manage-users, ជាដើម។
-
 Roles (តួនាទី និងការផ្តល់សិទ្ធិ):
-
 super_admin: មានសិទ្ធិគ្រប់យ៉ាង (Bypass គ្រប់ Permissions)។
-
 admin: អាចធ្វើបានស្ទើរតែទាំងអស់ តែមិនអាចលុប Admin គ្នាឯង ឬដូរ System Settings បាន។
-
 sale_staff: អាចត្រឹមមើលផលិតផល, ទម្លាក់ស្តុក, និងមើល/ប្តូរស្ថានភាព Order (មិនអាចលុប Product បានទេ)។
-
 customer: ប្រើប្រាស់សិទ្ធិតាម App ធម្មតា (ទិញទំនិញ មើលប្រវត្តិទិញ)។
 
 ទី៣៖ ការការពារ API Routes (Backend Middleware)

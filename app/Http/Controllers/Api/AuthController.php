@@ -139,11 +139,7 @@ class AuthController extends Controller
 
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $minutes = ceil(RateLimiter::availableIn($throttleKey) / 60);
-            return $this->sendError(
-                "Too many login attempts. Please try again after {$minutes} minutes.",
-                ['retry_after_minutes' => $minutes],
-                429
-            );
+            return $this->sendError("Too many login attempts. Please try again after {$minutes} minutes.", ['retry_after_minutes' => $minutes], 429);
         }
 
         $user = User::where('email', $request->email)->first();
@@ -152,7 +148,6 @@ class AuthController extends Controller
             $attempts = RateLimiter::attempts($throttleKey);
             RateLimiter::hit($throttleKey, ($attempts + 1) * 60);
             $remaining = 5 - RateLimiter::attempts($throttleKey);
-
             return $this->sendError("Invalid credentials. You have " . max(0, $remaining) . " attempts remaining.", ['attempts_left' => max(0, $remaining)], 422);
         }
 
@@ -160,46 +155,41 @@ class AuthController extends Controller
             return $this->sendError('Your account is disabled.', [], 403);
         }
 
-        // 🌟 កែប្រែទី១៖ អនុញ្ញាតឱ្យទាំង admin និង super_admin អាចរំលងការ Verify Email ទីនេះបាន
-        if ($user->email_verified_at === null && !in_array($user->role, ['admin', 'super_admin'])) {
+        // 🌟 បន្ថែមថ្មី៖ បិទមិនឱ្យ Customer ចូលក្នុង Admin System នេះបានឡើយ
+        if ($user->role === 'customer') {
+            return $this->sendError('Access denied. Please use the customer portal to log in.', [], 403);
+        }
+
+        // 🌟 អនុញ្ញាតឱ្យ admin, super_admin និង sale_staff រំលងការ Verify Email ក៏បាន
+        if ($user->email_verified_at === null && !in_array($user->role, ['admin', 'super_admin', 'sale_staff'])) {
             return $this->sendError('Your email address is not verified. Please verify your email before logging in.', ['needs_verification' => true, 'email' => $user->email], 403);
         }
 
         RateLimiter::clear($throttleKey);
         $user->update(['last_login_at' => now()]);
 
-        // 🌟 កែប្រែទី២៖ អនុញ្ញាតឱ្យទាំង admin និង super_admin ចូលក្នុងដំណើរការ OTP / Bypass នេះ
-        if (in_array($user->role, ['admin', 'super_admin'])) {
+        // 🌟 បញ្ចូល sale_staff ទៅក្នុងប្រព័ន្ធ OTP របស់បុគ្គលិក
+        if (in_array($user->role, ['admin', 'super_admin', 'sale_staff'])) {
             $bypassOtp = env('BYPASS_OTP_ON_LOCAL', false);
 
-            // 🌟 បន្ថែមថ្មី៖ ឆែកមើលថាតើប្រព័ន្ធ Bypass ត្រូវបានបើក ឬ Admin បានបិទ 2FA ដោយខ្លួនឯងឬទេ
             if ($bypassOtp || $user->is_2fa_enabled == false) {
-
                 if ($user->email_verified_at === null) {
                     $user->update(['email_verified_at' => now()]);
                 }
-
-                // 🌟 គួរប្រើ 'admin_api_token' ឱ្យដូចទៅនឹងមុខងារ verifyAdminLogin ដែរ
                 $token = $user->createToken('admin_api_token')->plainTextToken;
-
                 $data = ['user' => new UserResource($user->load('profile')), 'token' => $token];
                 return $this->sendResponse($data, 'Login successful. (2FA Disabled)', 200);
             }
 
-            // ហៅប្រើ Helper Method ប្រសិនបើ 2FA ត្រូវបានបើក
             $otpCode = $this->generateAndSaveOtp($user, 'login');
             Mail::to($user->email)->send(new AdminLoginOtpMail($otpCode));
-
             $data = ['requires_2fa' => true, 'email' => $user->email, 'expires_in' => self::OTP_EXPIRY_TEXT];
-            return $this->sendResponse($data, 'Admin credentials verified. OTP is required.', 200);
+            return $this->sendResponse($data, 'Staff credentials verified. OTP is required.', 200);
         }
 
+        // កូដនេះនឹងមិនដើរដល់ទេ ព្រោះយើងបាន Block Customer ខាងលើបាត់ហើយ តែទុកក៏មិនអីដែរ
         $token = $user->createToken('api_token')->plainTextToken;
-
-        $data = [
-            'user' => new UserResource($user->load('profile')),
-            'token' => $token
-        ];
+        $data = ['user' => new UserResource($user->load('profile')), 'token' => $token];
         return $this->sendResponse($data, 'Login successful.', 200);
     }
 
@@ -212,11 +202,11 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        if (!in_array($user->role, ['admin', 'super_admin'])) {
+        // 🌟 បន្ថែម sale_staff
+        if (!in_array($user->role, ['admin', 'super_admin', 'sale_staff'])) {
             return $this->sendError('Unauthorized access.', [], 403);
         }
 
-        // ហៅប្រើ Helper Method
         $validation = $this->validateOtpProcess($user, $request->otp_code, 'login');
         if (!$validation['isValid']) {
             return $this->sendError($validation['message'], [], $validation['status']);
@@ -224,20 +214,12 @@ class AuthController extends Controller
 
         return DB::transaction(function () use ($user, $validation) {
             $validation['otp']->update(['is_used' => true]);
-
-            // ==========================================
-            // 🌟 បន្ថែមថ្មី៖ បើ Admin មិនទាន់ Verify Email ទេ យើង Update ឱ្យគាត់តែម្តង
-            // ==========================================
             if ($user->email_verified_at === null) {
                 $user->update(['email_verified_at' => now()]);
             }
-
             $token = $user->createToken('admin_api_token')->plainTextToken;
-            $data = [
-                'user' => new UserResource($user->load('profile')),
-                'token' => $token
-            ];
-            return $this->sendResponse($data, 'Admin 2FA verified successfully.', 200);
+            $data = ['user' => new UserResource($user->load('profile')), 'token' => $token];
+            return $this->sendResponse($data, '2FA verified successfully.', 200);
         });
     }
 
@@ -405,37 +387,27 @@ class AuthController extends Controller
 
     public function adminForgotPassword(Request $request)
     {
-        $request->validate([
-            'email' => 'required|email|exists:users,email',
-        ]);
-
+        $request->validate(['email' => 'required|email|exists:users,email']);
         $user = User::where('email', $request->email)->first();
 
-        // 🌟 ១. ពិនិត្យ Role: អនុញ្ញាតតែ Admin & Super Admin ប៉ុណ្ណោះ
-        if (!in_array($user->role, ['admin', 'super_admin'])) {
-            return $this->sendError('Unauthorized access. This endpoint is for administrators only.', [], 403);
+        // 🌟 បន្ថែម sale_staff
+        if (!in_array($user->role, ['admin', 'super_admin', 'sale_staff'])) {
+            return $this->sendError('Unauthorized access. This endpoint is for staff only.', [], 403);
         }
 
         if (empty($user->password)) {
-            return $this->sendError(
-                'Your account is linked with Google. Please contact Super Admin for assistance.',
-                ['is_social_login' => true],
-                400
-            );
+            return $this->sendError('Your account is linked with Google. Please contact Super Admin for assistance.', ['is_social_login' => true], 400);
         }
 
         return DB::transaction(function () use ($user) {
-            // 🌟 ២. ប្រើគោលបំណងថ្មី 'admin_password_reset' ដើម្បីកុំឱ្យច្រឡំជាមួយ Customer
             $otpCode = $this->generateAndSaveOtp($user, 'admin_password_reset');
-
-            // ផ្ញើ Email (អ្នកអាចបង្កើត AdminForgotPasswordOtpMail ថ្មីមួយទៀតនៅថ្ងៃក្រោយបើចង់រចនា Template ផ្សេង)
             Mail::to($user->email)->send(new ForgotPasswordOtpMail($otpCode));
-
             $data = ['expires_in' => self::OTP_EXPIRY_TEXT];
-            return $this->sendResponse($data, 'Admin password reset OTP has been sent to your email.', 200);
+            return $this->sendResponse($data, 'Password reset OTP has been sent to your email.', 200);
         });
     }
 
+    // ៤. កែប្រែ Admin Reset Password
     public function adminResetPassword(Request $request)
     {
         $request->validate([
@@ -446,13 +418,12 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        if (!in_array($user->role, ['admin', 'super_admin'])) {
+        // 🌟 បន្ថែម sale_staff
+        if (!in_array($user->role, ['admin', 'super_admin', 'sale_staff'])) {
             return $this->sendError('Unauthorized access.', [], 403);
         }
 
-        // 🌟 ៣. ផ្ទៀងផ្ទាត់ OTP ជាមួយនឹងគោលបំណង 'admin_password_reset'
         $validation = $this->validateOtpProcess($user, $request->otp_code, 'admin_password_reset');
-
         if (!$validation['isValid']) {
             return $this->sendError($validation['message'], [], $validation['status']);
         }
@@ -460,8 +431,7 @@ class AuthController extends Controller
         return DB::transaction(function () use ($user, $validation, $request) {
             $validation['otp']->update(['is_used' => true]);
             $user->update(['password' => Hash::make($request->password)]);
-
-            return $this->sendResponse([], 'Admin password has been successfully reset. You can now log in securely.', 200);
+            return $this->sendResponse([], 'Password has been successfully reset.', 200);
         });
     }
 
@@ -470,27 +440,16 @@ class AuthController extends Controller
     // ==========================================
     public function toggle2FA(Request $request)
     {
-        $request->validate([
-            'is_2fa_enabled' => 'required|boolean',
-        ]);
-
+        $request->validate(['is_2fa_enabled' => 'required|boolean']);
         $user = $request->user();
 
-        // អនុញ្ញាតឱ្យតែ Admin និង Super Admin ប៉ុណ្ណោះដែលអាចបិទ/បើកមុខងារនេះបាន
-        if (!in_array($user->role, ['admin', 'super_admin'])) {
+        // 🌟 បន្ថែម sale_staff
+        if (!in_array($user->role, ['admin', 'super_admin', 'sale_staff'])) {
             return $this->sendError('Unauthorized to change 2FA settings.', [], 403);
         }
 
-        $user->update([
-            'is_2fa_enabled' => $request->is_2fa_enabled
-        ]);
-
+        $user->update(['is_2fa_enabled' => $request->is_2fa_enabled]);
         $status = $request->is_2fa_enabled ? 'enabled' : 'disabled';
-
-        return $this->sendResponse(
-            ['is_2fa_enabled' => $user->is_2fa_enabled],
-            "Two-Factor Authentication has been successfully {$status}.",
-            200
-        );
+        return $this->sendResponse(['is_2fa_enabled' => $user->is_2fa_enabled], "Two-Factor Authentication has been successfully {$status}.", 200);
     }
 }
