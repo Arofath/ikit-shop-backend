@@ -15,25 +15,40 @@ class DashboardController extends Controller
 {
     public function index(Request $request)
     {
-        // 🌟 ១. ចាប់យក User បច្ចុប្បន្ន និងឆែកមើលតួនាទី
+        // 🌟 ១. ចាប់យក User បច្ចុប្បន្ន និងឆែកមើលតួនាទី 
         $user = $request->user();
         $isSaleStaff = $user->role === 'sale_staff';
 
         // ==========================================
-        // ២. ចាប់យក Filter Parameters ទាំង ២ ដាច់ពីគ្នា
+        // 🌟 ២. ចាប់យក និងត្រួតពិនិត្យ Filter Parameters ផ្អែកលើ Role
         // ==========================================
-        $cardRange = $request->query('card_range', 'this_month');
-        $chartRange = $request->query('chart_range', 'last_6_months');
+        $requestedCardRange = $request->query('card_range', 'today'); // លំនាំដើម today
+        $requestedChartRange = $request->query('chart_range', 'this_month');
+
+        if ($isSaleStaff) {
+            // កំណត់សិទ្ធិសម្រាប់ Sale Staff
+            $allowedStaffCardRanges = ['today', 'yesterday', 'last_7_days', 'this_month'];
+            $cardRange = in_array($requestedCardRange, $allowedStaffCardRanges) ? $requestedCardRange : 'today';
+
+            $allowedStaffChartRanges = ['last_7_days', 'this_month'];
+            $chartRange = in_array($requestedChartRange, $allowedStaffChartRanges) ? $requestedChartRange : 'this_month';
+        } else {
+            // កំណត់សិទ្ធិសម្រាប់ Admin
+            $allowedAdminCardRanges = ['today', 'yesterday', 'last_7_days', 'this_month', 'this_year'];
+            $cardRange = in_array($requestedCardRange, $allowedAdminCardRanges) ? $requestedCardRange : 'today';
+
+            $allowedAdminChartRanges = ['last_7_days', 'this_month', 'last_6_months', 'this_year'];
+            $chartRange = in_array($requestedChartRange, $allowedAdminChartRanges) ? $requestedChartRange : 'last_6_months';
+        }
 
         [$cardStart, $cardEnd] = $this->getDatesFromRange($cardRange);
         [$chartStart, $chartEnd, $groupBy] = $this->getDatesFromRange($chartRange);
 
         // ==========================================
-        // ៣. KPIs (Summary Cards) - គិតលេខតាម $cardRange
+        // ៣. KPIs (Summary Cards) - គិតលេខតាម $cardRange 
         // ==========================================
         $summary = [
-            // 🌟 បិទមិនឱ្យគណនា Revenue ទេ ប្រសិនបើជា Sale Staff (សន្សំកម្លាំង Server ផង និងការពារទិន្នន័យផង)
-            'total_revenue'   => $isSaleStaff ? 0 : Order::whereHas('payment', function ($q) use ($cardStart, $cardEnd) {
+            'total_revenue'   => Order::whereHas('payment', function ($q) use ($cardStart, $cardEnd) {
                 $q->where('status', 'COMPLETED')
                     ->whereBetween('paid_at', [$cardStart, $cardEnd]);
             })
@@ -47,12 +62,12 @@ class DashboardController extends Controller
         ];
 
         // ==========================================
-        // ៤. Chart Data (Revenue & Orders) - គិតលេខតាម $chartRange[cite: 18]
+        // ៤. Chart Data (Revenue & Orders) - គិតលេខតាម $chartRange 
         // ==========================================
         $groupFormat = $groupBy === 'month' ? '"%Y-%m"' : 'DATE(%s)';
         $mysqlFormat = $groupBy === 'month' ? 'DATE_FORMAT(%s, "%%Y-%%m")' : 'DATE(%s)';
 
-        // ៤.១ ទាញទិន្នន័យចំនួន Order (Sale Staff ក៏អាចមើលចំនួន Order បាន)[cite: 18]
+        // ៤.១ ទាញទិន្នន័យចំនួន Order 
         $ordersStats = Order::select([
             DB::raw('COUNT(id) as orders_count'),
             DB::raw('SUM(CASE WHEN payment_status = "PAID" THEN 1 ELSE 0 END) as paid_orders_count'),
@@ -63,8 +78,8 @@ class DashboardController extends Controller
             ->get()
             ->keyBy('group_key');
 
-        // ៤.២ ទាញទិន្នន័យចំណូល (ធ្វើការ Query តែនៅពេលដែល User មិនមែនជា Sale Staff)
-        $revenueStats = collect(); // បង្កើត Collection ទទេទុកជាមុន
+        // ៤.២ ទាញទិន្នន័យចំណូល (ធ្វើការ Query តែនៅពេលដែល User មិនមែនជា Sale Staff) 
+        $revenueStats = collect();
 
         if (!$isSaleStaff) {
             $revenueStats = Order::select([
@@ -101,7 +116,7 @@ class DashboardController extends Controller
             $orderStat = $ordersStats->get($key);
             $revStat = $revenueStats->get($key);
 
-            // 🌟 ប្រសិនបើជា Sale Staff តម្លៃ Revenue នឹងក្លាយជា 0 ដោយស្វ័យប្រវត្តិ
+            // 🌟 តម្លៃ Revenue នឹងក្លាយជា 0 ដោយស្វ័យប្រវត្តិសម្រាប់ Sale Staff 
             $revenue[] = $revStat ? (float) $revStat->revenue : 0;
             $orders[] = $orderStat ? (int) $orderStat->orders_count : 0;
             $paidOrders[] = $orderStat ? (int) $orderStat->paid_orders_count : 0;
@@ -115,7 +130,7 @@ class DashboardController extends Controller
         ];
 
         // ==========================================
-        // ៥. Sales Activities & Alerts (រក្សាទុកដដែល ព្រោះ Sale Staff ត្រូវការវា)[cite: 18]
+        // ៥. Sales Activities & Alerts 
         // ==========================================
         $recentOrdersRaw = Order::with('user')->latest()->take(4)->get();
         $recentOrders = $recentOrdersRaw->map(function ($order) {
@@ -168,7 +183,7 @@ class DashboardController extends Controller
         });
 
         // ==========================================
-        // ៦. បញ្ជូនទិន្នន័យទៅ Frontend[cite: 18]
+        // ៦. បញ្ជូនទិន្នន័យទៅ Frontend 
         // ==========================================
         return response()->json([
             'success' => true,
