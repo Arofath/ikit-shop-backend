@@ -47,6 +47,8 @@ class User extends Authenticatable
             'last_login_at' => 'datetime',
             'is_active' => 'boolean',
             'password' => 'hashed',
+            'is_2fa_enabled' => 'boolean',
+            'require_password_change' => 'boolean',
         ];
     }
 
