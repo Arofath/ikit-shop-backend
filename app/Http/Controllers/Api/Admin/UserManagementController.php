@@ -47,7 +47,6 @@ class UserManagementController extends Controller
             'name'     => 'required|string|max:255',
             'email'    => 'required|string|email|max:255|unique:users',
             'role'     => 'required|in:sale_staff,admin,super_admin',
-            // 🌟 ថ្មី៖ តម្រូវឱ្យ Frontend បញ្ជូន Password មក (យ៉ាងហោចណាស់ ៨ ខ្ទង់)
             'password' => 'required|string|min:8',
             'require_password_change' => 'boolean',
         ]);
@@ -57,11 +56,12 @@ class UserManagementController extends Controller
             return $this->sendError('Unauthorized: Only Super Admin can create admin accounts.', [], 403);
         }
 
-        // 🌟 ថ្មី៖ ធ្វើការ Hash លេខសម្ងាត់ដែលទទួលពី Frontend
         $validated['password'] = Hash::make($validated['password']);
 
         $validated['is_active'] = true;
-        // ចាប់យកតម្លៃ require_password_change បើគ្មានបញ្ជូនមកទេ គឺកំណត់វាជា true ជាលំនាំដើម
+        // 🌟 ត្រូវតែបន្ថែមបន្ទាត់នេះដាច់ខាត ដើម្បីការពារកុំឱ្យទាមទារ OTP ពេល Login លើកដំបូង
+        $validated['is_2fa_enabled'] = false;
+
         $validated['require_password_change'] = $request->boolean('require_password_change', true);
 
         // បង្កើតគណនី
@@ -69,7 +69,6 @@ class UserManagementController extends Controller
         // បង្កើត Profile ទទេមួយភ្ជាប់ទៅជាមួយ
         $user->profile()->firstOrCreate([]);
 
-        // លែងបោះ temp_password ត្រឡប់ទៅវិញទៀតហើយ ព្រោះ Frontend ជាអ្នកដឹងលេខសម្ងាត់នេះរួចហើយ
         return $this->sendResponse(new UserResource($user->load('profile')), 'Account created successfully.', 201);
     }
 
