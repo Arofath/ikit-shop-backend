@@ -40,8 +40,6 @@ class UserManagementController extends Controller
         return $this->sendResponse($paginatedData, 'List of users fetched successfully.');
     }
 
-    // បង្កើត User / Sale Staff / Admin / Super Admin ថ្មី
-    // មុខងារសម្រាប់បង្កើត User ថ្មី
     public function store(Request $request)
     {
         $currentUser = $request->user();
@@ -49,28 +47,31 @@ class UserManagementController extends Controller
         $validated = $request->validate([
             'name'     => 'required|string|max:255',
             'email'    => 'required|string|email|max:255|unique:users',
-            // 🌟 កែប្រែ៖ ដក 'customer' ចេញ អនុញ្ញាតតែ sale_staff, admin, និង super_admin ប៉ុណ្ណោះ
             'role'     => 'required|in:sale_staff,admin,super_admin',
+            // 🌟 ថ្មី៖ តម្រូវឱ្យ Frontend បញ្ជូន Password មក (យ៉ាងហោចណាស់ ៨ ខ្ទង់)
+            'password' => 'required|string|min:8',
             'require_password_change' => 'boolean',
         ]);
 
+        // ការពារមានតែ Super Admin ទេទើបអាចបង្កើត Admin ឬ Super Admin ថ្មីបាន
         if (in_array($request->role, ['admin', 'super_admin']) && !$currentUser->isSuperAdmin()) {
             return $this->sendError('Unauthorized: Only Super Admin can create admin accounts.', [], 403);
         }
 
-        $plainPassword = Str::random(8);
-        $validated['password'] = Hash::make($plainPassword);
+        // 🌟 ថ្មី៖ ធ្វើការ Hash លេខសម្ងាត់ដែលទទួលពី Frontend
+        $validated['password'] = Hash::make($validated['password']);
 
         $validated['is_active'] = true;
+        // ចាប់យកតម្លៃ require_password_change បើគ្មានបញ្ជូនមកទេ គឺកំណត់វាជា true ជាលំនាំដើម
         $validated['require_password_change'] = $request->boolean('require_password_change', true);
 
+        // បង្កើតគណនី
         $user = clone User::create($validated);
+        // បង្កើត Profile ទទេមួយភ្ជាប់ទៅជាមួយ
         $user->profile()->firstOrCreate([]);
 
-        $responseData = new UserResource($user->load('profile'));
-        $responseData->additional(['temp_password' => $plainPassword]);
-
-        return $this->sendResponse($responseData, 'Account created successfully. Temporary password generated.', 201);
+        // លែងបោះ temp_password ត្រឡប់ទៅវិញទៀតហើយ ព្រោះ Frontend ជាអ្នកដឹងលេខសម្ងាត់នេះរួចហើយ
+        return $this->sendResponse(new UserResource($user->load('profile')), 'Account created successfully.', 201);
     }
 
     // view user details
