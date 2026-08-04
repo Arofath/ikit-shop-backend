@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use App\Http\Resources\UserResource;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Hash;
 
 class UserManagementController extends Controller
 {
@@ -15,10 +17,7 @@ class UserManagementController extends Controller
         $currentUser = $request->user();
 
         $users = User::with('profile')
-            ->when(!$currentUser->isSuperAdmin(), function ($query) {
-                // Admin ធម្មតាមើលឃើញត្រឹម Customer ទេ
-                $query->where('role', 'customer');
-            })
+            // 🌟 កែប្រែ៖ ដកលក្ខខណ្ឌដែលលាក់មិនឱ្យ Admin ឃើញបុគ្គលិកចេញ
             ->when($request->filled('role'), function ($query) use ($request) {
                 $query->where('role', $request->role);
             })
@@ -36,39 +35,42 @@ class UserManagementController extends Controller
             ->latest()
             ->paginate($request->get('per_page', 10));
 
-        // ទាញយកទិន្នន័យ Pagination ឱ្យត្រូវទម្រង់
         $paginatedData = UserResource::collection($users)->response()->getData(true);
 
         return $this->sendResponse($paginatedData, 'List of users fetched successfully.');
     }
 
-    // បង្កើត User / Admin / Super Admin ថ្មី
+    // បង្កើត User / Sale Staff / Admin / Super Admin ថ្មី
+    // មុខងារសម្រាប់បង្កើត User ថ្មី
     public function store(Request $request)
     {
         $currentUser = $request->user();
 
-        // 🌟 កែប្រែ៖ ត្រូវបន្ថែម 'super_admin' ចូលក្នុង Validation
         $validated = $request->validate([
             'name'     => 'required|string|max:255',
             'email'    => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8',
-            'role'     => 'required|in:customer,admin,super_admin',
+            // 🌟 កែប្រែ៖ ដក 'customer' ចេញ អនុញ្ញាតតែ sale_staff, admin, និង super_admin ប៉ុណ្ណោះ
+            'role'     => 'required|in:sale_staff,admin,super_admin',
+            'require_password_change' => 'boolean',
         ]);
 
-        // 🌟 ការពារមានតែ Super Admin ទេទើបអាចបង្កើត Admin ឬ Super Admin ថ្មីបាន
         if (in_array($request->role, ['admin', 'super_admin']) && !$currentUser->isSuperAdmin()) {
             return $this->sendError('Unauthorized: Only Super Admin can create admin accounts.', [], 403);
         }
 
-        $validated['password'] = bcrypt($validated['password']);
+        $plainPassword = Str::random(8);
+        $validated['password'] = Hash::make($plainPassword);
+
         $validated['is_active'] = true;
+        $validated['require_password_change'] = $request->boolean('require_password_change', true);
 
         $user = clone User::create($validated);
-
-        // បង្កើត Profile ទទេមួយភ្ជាប់ទៅជាមួយ
         $user->profile()->firstOrCreate([]);
 
-        return $this->sendResponse(new UserResource($user->load('profile')), 'Account created successfully.', 201);
+        $responseData = new UserResource($user->load('profile'));
+        $responseData->additional(['temp_password' => $plainPassword]);
+
+        return $this->sendResponse($responseData, 'Account created successfully. Temporary password generated.', 201);
     }
 
     // view user details
@@ -86,12 +88,10 @@ class UserManagementController extends Controller
         $user = User::findOrFail($id);
         $currentUser = $request->user();
 
-        // ១. ការពារខ្លួនឯង
         if ($currentUser->id === $user->id && !$request->is_active) {
             return $this->sendError('You cannot disable your own account.', [], 403);
         }
 
-        // ២. ការពារ Super Admin ពី Admin ធម្មតា (អត់មានការផ្លាស់ប្តូរទេ ព្រោះ Function isSuperAdmin ល្អស្រាប់)
         if ($user->isSuperAdmin() && !$currentUser->isSuperAdmin()) {
             return $this->sendError('Unauthorized: Cannot modify Super Admin status.', [], 403);
         }
@@ -102,22 +102,21 @@ class UserManagementController extends Controller
     }
 
     // Change role
+    // មុខងារសម្រាប់ផ្លាស់ប្តូរ Role
     public function updateRole(Request $request, string $id)
     {
-        // 🌟 កែប្រែ៖ ត្រូវបន្ថែម 'super_admin' ចូលក្នុង Validation
         $request->validate([
-            'role' => 'required|in:customer,admin,super_admin',
+            // 🌟 កែប្រែ៖ ដក 'customer' ចេញដូចគ្នា
+            'role' => 'required|in:sale_staff,admin,super_admin',
         ]);
 
         $user = User::findOrFail($id);
         $currentUser = $request->user();
 
-        // ១. ការពារខ្លួនឯង
         if ($currentUser->id === $user->id) {
             return $this->sendError('You cannot change your own role.', [], 403);
         }
 
-        // ២. ការពារមិនឱ្យ Admin ធម្មតាធ្វើការផ្លាស់ប្តូរ Role
         if (!$currentUser->isSuperAdmin()) {
             return $this->sendError('Unauthorized: Only Super Admin can change user roles.', [], 403);
         }
@@ -133,17 +132,14 @@ class UserManagementController extends Controller
         $userToDelete = User::findOrFail($id);
         $currentUser = $request->user();
 
-        // 🌟 ថ្មី៖ ការពារគណនី Founder មិនឱ្យត្រូវគេលុបបានទាល់តែសោះ (ទោះជា Super Admin ផ្សេងទៀតចង់លុបក៏ដោយ)
         if ($userToDelete->email === config('app.super_admin_email')) {
             return $this->sendError('Unauthorized: The primary system owner account cannot be deleted.', [], 403);
         }
 
-        // 🌟 កែប្រែ៖ ការពារការលុប Admin ឬ Super Admin ពីសំណាក់ Admin ធម្មតា
         if (($userToDelete->role === 'admin' || $userToDelete->isSuperAdmin()) && !$currentUser->isSuperAdmin()) {
             return $this->sendError('Unauthorized: Only Super Admin can delete other admins.', [], 403);
         }
 
-        // ការពារការលុបខ្លួនឯង
         if ($currentUser->id === $userToDelete->id) {
             return $this->sendError('You cannot delete your own account.', [], 403);
         }
