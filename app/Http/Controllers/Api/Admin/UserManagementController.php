@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use App\Http\Resources\UserResource;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 
 class UserManagementController extends Controller

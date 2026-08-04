@@ -40,6 +40,7 @@ Route::prefix('auth/google')->group(function () {
 
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+Route::post('/force-change-password', [AuthController::class, 'forceChangePassword']);
 
 Route::prefix('admin')->group(function () {
     Route::post('/forgot-password', [AuthController::class, 'adminForgotPassword']);

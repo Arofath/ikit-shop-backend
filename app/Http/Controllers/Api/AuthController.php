@@ -155,6 +155,18 @@ class AuthController extends Controller
             return $this->sendError('Your account is disabled.', [], 403);
         }
 
+        // 🌟 ដំណាក់កាលទី ៤៖ ស្ទាក់ចាប់ការទាមទារប្តូរលេខសម្ងាត់ (Force Password Change)
+        if ($user->require_password_change) {
+            return $this->sendError(
+                'You are required to change your password before logging in.',
+                [
+                    'require_password_change' => true,
+                    'email' => $user->email // បោះ email ទៅឱ្យ Frontend ដើម្បីងាយស្រួលផ្ញើមកវិញពេលប្តូរលេខសម្ងាត់
+                ],
+                403
+            );
+        }
+
         // 🌟 បន្ថែមថ្មី៖ បិទមិនឱ្យ Customer ចូលក្នុង Admin System នេះបានឡើយ
         if ($user->role === 'customer') {
             return $this->sendError('Access denied. Please use the customer portal to log in.', [], 403);
@@ -461,5 +473,39 @@ class AuthController extends Controller
         $user->update(['is_2fa_enabled' => $request->is_2fa_enabled]);
         $status = $request->is_2fa_enabled ? 'enabled' : 'disabled';
         return $this->sendResponse(['is_2fa_enabled' => $user->is_2fa_enabled], "Two-Factor Authentication has been successfully {$status}.", 200);
+    }
+
+    public function forceChangePassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+            'current_password' => 'required|string',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        // ១. ផ្ទៀងផ្ទាត់ Password ចាស់សិន (ដើម្បីប្រាកដថាគាត់ពិតជាម្ចាស់គណនីមែន)
+        if (!$user || !Hash::check($request->current_password, $user->password)) {
+            return $this->sendError('Invalid current credentials.', [], 401);
+        }
+
+        // ២. ឆែកមើលថាគណនីនេះពិតជាជាប់លក្ខខណ្ឌ Force Change មែនឬអត់
+        if (!$user->require_password_change) {
+            return $this->sendError('Password change is not required for this account.', [], 400);
+        }
+
+        // ៣. ស្រេចចិត្ត៖ ការពារកុំឱ្យគេដាក់លេខសម្ងាត់ថ្មីដូចលេខចាស់
+        if (Hash::check($request->password, $user->password)) {
+            return $this->sendError('New password cannot be the same as your current temporary password.', [], 422);
+        }
+
+        // ៤. អាប់ដេតលេខសម្ងាត់ថ្មី និងដកលក្ខខណ្ឌចេញ
+        $user->update([
+            'password' => Hash::make($request->password),
+            'require_password_change' => false
+        ]);
+
+        return $this->sendResponse([], 'Password has been successfully updated. You can now log in.', 200);
     }
 }
