@@ -26,6 +26,22 @@ class AdminOrderResource extends JsonResource
                 'name' => $this->creator->name ?? 'System',
             ],
 
+            // 🌟 ថ្មី៖ បញ្ជូនទិន្នន័យអ្នក Update Status ទៅ Frontend
+            'status_updater'   => $this->whenLoaded('statusUpdater', function () {
+                return $this->statusUpdater ? [
+                    'id'   => $this->statusUpdater->id,
+                    'name' => $this->statusUpdater->name,
+                ] : null;
+            }),
+
+            // 🌟 ថ្មី៖ បញ្ជូនទិន្នន័យអ្នក Process Payment ទៅ Frontend
+            'payment_processor' => $this->whenLoaded('paymentProcessor', function () {
+                return $this->paymentProcessor ? [
+                    'id'   => $this->paymentProcessor->id,
+                    'name' => $this->paymentProcessor->name,
+                ] : null;
+            }),
+
             'shipping_name'    => $this->shipping_name,
             'shipping_phone'   => $this->shipping_phone,
             'shipping_address' => $this->shipping_address,
