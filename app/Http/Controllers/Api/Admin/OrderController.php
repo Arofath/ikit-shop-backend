@@ -33,21 +33,51 @@ class OrderController extends Controller
 
         if ($request->has('search') && $request->search != '') {
             $search = $request->search;
-            $query->where('order_number', 'LIKE', "%{$search}%")
-                ->orWhere('shipping_name', 'LIKE', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->where('order_number', 'LIKE', "%{$search}%")
+                    ->orWhere('shipping_name', 'LIKE', "%{$search}%");
+            });
         }
 
-        // បែងចែក ១៥ វិក្កយបត្រក្នុងមួយទំព័រ
-        $orders = $query->paginate(15);
+        // 🌟 មុខងារថ្មីសម្រាប់ Drill-down Date Filter
+        if ($request->has('date_filter') && $request->date_filter != '') {
+            $range = $request->date_filter;
+            // ហៅ Private Method ខាងក្រោមមកប្រើដើម្បីបំប្លែងពាក្យទៅជាកាលបរិច្ឆេទ
+            [$start, $end] = $this->getDatesFromRange($range);
 
-        // 🌟 ដំណោះស្រាយ៖ ទាញយកទិន្នន័យ និង Pagination Meta ចេញពី Resource ជាមុនសិន
+            // Filter តាមថ្ងៃខែដែលបង្កើតវិក្កយបត្រ
+            $query->whereBetween('created_at', [$start, $end]);
+        }
+
+        $orders = $query->paginate(15);
         $resource = AdminOrderResource::collection($orders)->response()->getData(true);
 
         return response()->json([
             'success' => true,
-            'data'    => $resource['data'], // ទិន្នន័យវិក្កយបត្រ
-            'meta'    => $resource['meta']  // 🌟 បញ្ជូន Meta ទៅឱ្យ Frontend ដើម្បីឱ្យ Pagination ដំណើរការ
+            'data'    => $resource['data'],
+            'meta'    => $resource['meta']
         ]);
+    }
+
+    private function getDatesFromRange($range)
+    {
+        $now = \Carbon\Carbon::now();
+
+        switch ($range) {
+            case 'today':
+                return [$now->copy()->startOfDay(), $now->copy()->endOfDay()];
+            case 'yesterday':
+                return [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()];
+            case 'last_7_days':
+                return [$now->copy()->subDays(6)->startOfDay(), $now->copy()->endOfDay()];
+            case 'last_month':
+                return [$now->copy()->subMonth()->startOfMonth(), $now->copy()->subMonth()->endOfMonth()];
+            case 'this_year':
+                return [$now->copy()->startOfYear(), $now->copy()->endOfDay()];
+            case 'this_month':
+            default:
+                return [$now->copy()->startOfMonth(), $now->copy()->endOfDay()];
+        }
     }
 
     /**
