@@ -85,8 +85,15 @@ class OrderController extends Controller
      */
     public function show($id)
     {
-        // 🌟 ថែម 'items.product.serials' ចូលទៅក្នុង with()
-        $order = Order::with(['user', 'items.product.thumbnail', 'items.product.serials', 'payment'])->findOrFail($id);
+        // 🌟 ថែម 'statusUpdater' និង 'paymentProcessor' ចូលទៅក្នុង with()
+        $order = Order::with([
+            'user',
+            'items.product.thumbnail',
+            'items.product.serials',
+            'payment',
+            'statusUpdater',     // ទាញយកអ្នកប្តូរ Order Status
+            'paymentProcessor'   // ទាញយកអ្នកប្តូរ Payment Status
+        ])->findOrFail($id);
 
         return response()->json([
             'success' => true,
@@ -103,10 +110,8 @@ class OrderController extends Controller
             'status' => 'required|in:PENDING,PROCESSING,SHIPPED,COMPLETED,CANCELLED'
         ]);
 
-        // 🌟 ត្រូវប្រាកដថាបានទាញយក items.product មកជាមួយ ដើម្បីឆែកមើល is_serialized
         $order = Order::with(['items.product', 'payment'])->findOrFail($id);
 
-        // ការពារកុំឱ្យ Admin ចុចដូរ Status វិក្កយបត្រដែលបិទបញ្ជីរួច (COMPLETED ឬ CANCELLED)
         if (in_array($order->status, ['COMPLETED', 'CANCELLED'])) {
             return response()->json([
                 'success' => false,
@@ -119,27 +124,19 @@ class OrderController extends Controller
         try {
             $newStatus = $request->status;
 
-            // ==========================================
-            // 🌟 កូដការពារ៖ ឆែកមើល Serial មុននឹងឱ្យប្តូរទៅ COMPLETED
-            // ==========================================
             if ($newStatus === 'COMPLETED') {
                 foreach ($order->items as $item) {
                     $product = $item->product;
 
-                    // បើទំនិញនេះត្រូវការ Serial នោះយើងត្រូវឆែកមើល
                     if ($product && $product->is_serialized) {
-
-                        // ១. រកមើលប្រវត្តិដកស្តុក (OUT) របស់ទំនិញនេះ ក្នុងវិក្កយបត្រនេះ
                         $outMovement = ProductStockMovement::where('reference_number', $order->order_number)
                             ->where('product_id', $product->id)
                             ->where('type', 'OUT')
                             ->first();
 
                         if ($outMovement) {
-                            // ២. រាប់ចំនួន Serial ដែល Admin បានស្កេនបញ្ចូល ធៀបនឹងចំនួនដែលបានកម្ម៉ង់
                             $scannedCount = ProductSerial::where('sold_movement_id', $outMovement->id)->count();
 
-                            // ៣. បើស្កេនមិនទាន់គ្រប់ទេ បោះ Error បដិសេធភ្លាមៗ!
                             if ($scannedCount < $outMovement->quantity) {
                                 DB::rollBack();
                                 return response()->json([
@@ -153,30 +150,26 @@ class OrderController extends Controller
             }
 
             $order->status = $newStatus;
+            $order->status_updated_by = $request->user()->id; // 🌟 កត់ត្រាអ្នកប្តូរ Status
 
-            // ==========================================
-            // 🌟 ករណីទី ១៖ ជោគជ័យ (COMPLETED) -> អាប់ដេតការបង់ប្រាក់
-            // ==========================================
             if ($newStatus === 'COMPLETED') {
                 $order->payment_status = 'PAID';
+                // បើប្តូរទៅជា PAID ដោយស្វ័យប្រវត្តិ គួរតែកត់ត្រាអ្នកប្តូរ Payment ដែរ
+                $order->payment_processed_by = $request->user()->id;
 
                 if ($order->payment) {
                     $order->payment->update([
                         'status'  => 'COMPLETED',
-                        'paid_at' => now() // កត់ត្រាថ្ងៃម៉ោងដែលទទួលបានលុយ
+                        'paid_at' => now()
                     ]);
                 }
             }
 
-            // ==========================================
-            // 🌟 ករណីទី ២៖ បោះបង់ (CANCELLED) -> បូកស្តុកទំនិញចូលឃ្លាំងវិញ និងដក Serial
-            // ==========================================
             if ($newStatus === 'CANCELLED') {
                 foreach ($order->items as $item) {
-                    $product = $item->product; // ប្រើ Relationship ដែលមានស្រាប់
+                    $product = $item->product;
 
                     if ($product) {
-                        // 🌟 បន្ថែម៖ បើមានស្កេន Serial ខ្លះហើយ ពេល Cancel ត្រូវដក Serial នោះចេញពី Order នេះវិញ (ដូរទៅ AVAILABLE វិញ)
                         if ($product->is_serialized) {
                             $outMovement = ProductStockMovement::where('reference_number', $order->order_number)
                                 ->where('product_id', $product->id)
@@ -192,14 +185,13 @@ class OrderController extends Controller
                             }
                         }
 
-                        // បង្កើត Record បញ្ចូលស្តុក (Stock IN) ទៅក្នុង ProductStockMovement
                         \App\Models\ProductStockMovement::create([
                             'product_id'       => $product->id,
                             'reference_number' => $order->order_number,
-                            'type'             => 'IN', // ប្រភេទនាំចូល
+                            'type'             => 'IN',
                             'quantity'         => $item->quantity,
                             'cost_price'       => $product->cost_price ?? 0,
-                            'balance_after'    => $product->current_stock + $item->quantity, // បូកស្តុកបញ្ច្រាសមកវិញ
+                            'balance_after'    => $product->current_stock + $item->quantity,
                             'note'             => 'Restock from cancelled order',
                         ]);
                     }
@@ -210,9 +202,12 @@ class OrderController extends Controller
 
             DB::commit();
 
-            if ($order->user) { // បញ្ជាក់ថាភ្ញៀវនេះមានគណនី (មិនមែន Guest)
+            if ($order->user) {
                 $order->user->notify(new OrderStatusUpdatedNotification($order, 'status'));
             }
+
+            // 🌟 Reload Relationship មុនបោះទៅ Frontend ដើម្បីឱ្យ UI ស្គាល់ឈ្មោះអ្នក Update ភ្លាមៗ
+            $order->load(['statusUpdater', 'paymentProcessor']);
 
             return response()->json([
                 'success' => true,
@@ -240,6 +235,7 @@ class OrderController extends Controller
         DB::beginTransaction();
         try {
             $order->payment_status = $newStatus;
+            $order->payment_processed_by = $request->user()->id; // 🌟 កត់ត្រាអ្នកប្តូរ Payment
 
             // Update ក្នុង Table Payment ផងដែរ ប្រសិនបើមាន
             if ($order->payment) {
@@ -256,9 +252,13 @@ class OrderController extends Controller
                 $order->user->notify(new OrderStatusUpdatedNotification($order, 'payment'));
             }
 
+            // 🌟 Reload Relationship មុនបោះទៅ Frontend ដើម្បីឱ្យ UI ស្គាល់ឈ្មោះអ្នក Update ភ្លាមៗ
+            $order->load(['statusUpdater', 'paymentProcessor']);
+
             return response()->json([
                 'success' => true,
                 'message' => "Payment status updated to {$newStatus}.",
+                'data'    => new AdminOrderResource($order) // 🌟 ឥឡូវនេះវាបោះ Data ទៅឱ្យ Frontend វិញហើយ
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -276,7 +276,6 @@ class OrderController extends Controller
     {
         $order = Order::findOrFail($id);
 
-        // ត្រួតពិនិត្យ៖ អនុញ្ញាតឱ្យលុបតែ Order ណាដែល CANCELLED ឬ COMPLETED ប៉ុណ្ណោះ
         if (!in_array($order->status, ['CANCELLED', 'COMPLETED'])) {
             return response()->json([
                 'success' => false,
@@ -285,8 +284,6 @@ class OrderController extends Controller
         }
 
         try {
-            // ដោយសារ Table orders មានប្រើ softDeletes()
-            // វានឹងគ្រាន់តែ Update ជួរឈរ deleted_at មិនលុបទិន្នន័យចោលទាំងស្រុងពី Database ទេ
             $order->delete();
 
             return response()->json([
@@ -312,7 +309,6 @@ class OrderController extends Controller
 
         $order = Order::with('items.product')->findOrFail($id);
 
-        // ការពារកុំឱ្យស្កេនបញ្ចូល Serial លើវិក្កយបត្រដែលបិទបញ្ជីរួច
         if (in_array($order->status, ['COMPLETED', 'CANCELLED'])) {
             return response()->json([
                 'success' => false,
@@ -323,12 +319,10 @@ class OrderController extends Controller
         DB::beginTransaction();
 
         try {
-            // ១. ស្វែងរក Serial Number នៅក្នុងប្រព័ន្ធ (ប្រើ lockForUpdate ដើម្បីការពារ Admin ២នាក់ ស្កេន Serial តែមួយជាន់គ្នា)
             $serial = ProductSerial::where('serial_number', $request->serial_number)
                 ->lockForUpdate()
                 ->first();
 
-            // ករណីទី ២ និងទី ៣ នឹងត្រូវសរសេរចូលត្រង់ចំណុចនេះនៅពេលក្រោយ (Smart Solution ពេលរកមិនឃើញ)
             if (!$serial) {
                 return response()->json([
                     'success' => false,
@@ -343,7 +337,6 @@ class OrderController extends Controller
                 ], 400);
             }
 
-            // ២. ផ្ទៀងផ្ទាត់ថាតើ Serial នេះជារបស់ Product ដែលភ្ញៀវបានកម្ម៉ង់មែនឬអត់?
             $orderItem = $order->items->where('product_id', $serial->product_id)->first();
 
             if (!$orderItem) {
@@ -353,7 +346,6 @@ class OrderController extends Controller
                 ], 400);
             }
 
-            // ៣. ស្វែងរក Movement (OUT) ដែលបានកក់ទុកពេល Checkout ដោយភ្ញៀវ
             $outMovement = ProductStockMovement::where('reference_number', $order->order_number)
                 ->where('product_id', $serial->product_id)
                 ->where('type', 'OUT')
@@ -366,7 +358,6 @@ class OrderController extends Controller
                 ], 500);
             }
 
-            // ៤. ឆែកមើលចំនួន Serial ដែលបានស្កេនរួច ធៀបនឹងចំនួនដែលបានកម្ម៉ង់
             $scannedCount = ProductSerial::where('sold_movement_id', $outMovement->id)->count();
 
             if ($scannedCount >= $outMovement->quantity) {
@@ -376,7 +367,6 @@ class OrderController extends Controller
                 ], 400);
             }
 
-            // ៥. អាប់ដេត Serial ទៅជា SOLD និងភ្ជាប់ទៅកាន់ Movement (OUT) នៃវិក្កយបត្រនេះ
             $serial->update([
                 'status'           => 'SOLD',
                 'sold_movement_id' => $outMovement->id,
@@ -390,8 +380,8 @@ class OrderController extends Controller
                 'data'    => [
                     'product_name'   => $orderItem->product->name,
                     'serial_number'  => $serial->serial_number,
-                    'scanned_count'  => $scannedCount + 1, // ចំនួនដែលស្កេនបាន
-                    'required_count' => $outMovement->quantity, // ចំនួនសរុបដែលត្រូវស្កេន
+                    'scanned_count'  => $scannedCount + 1,
+                    'required_count' => $outMovement->quantity,
                 ]
             ]);
         } catch (\Exception $e) {
@@ -425,7 +415,6 @@ class OrderController extends Controller
         $order->payment_note = $request->payment_note;
         $order->save();
 
-        // 🌟 ភ្ជាប់ Notification ត្រង់នេះ៖ បាញ់ដំណឹងទៅកាន់ម្ចាស់ Order
         if ($order->user) {
             $order->user->notify(new ReceiptRejectedNotification($order, $request->payment_note));
         }

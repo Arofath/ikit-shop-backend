@@ -54,4 +54,14 @@ class Order extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+    public function statusUpdater()
+    {
+        return $this->belongsTo(User::class, 'status_updated_by');
+    }
+
+    public function paymentProcessor()
+    {
+        return $this->belongsTo(User::class, 'payment_processed_by');
+    }
 }
