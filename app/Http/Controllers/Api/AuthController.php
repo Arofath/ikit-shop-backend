@@ -167,10 +167,10 @@ class AuthController extends Controller
             );
         }
 
-        // 🌟 បន្ថែមថ្មី៖ បិទមិនឱ្យ Customer ចូលក្នុង Admin System នេះបានឡើយ
-        if ($user->role === 'customer') {
-            return $this->sendError('Access denied. Please use the customer portal to log in.', [], 403);
-        }
+        // // 🌟 បន្ថែមថ្មី៖ បិទមិនឱ្យ Customer ចូលក្នុង Admin System នេះបានឡើយ
+        // if ($user->role === 'customer') {
+        //     return $this->sendError('Access denied. Please use the customer portal to log in.', [], 403);
+        // }
 
         // 🌟 អនុញ្ញាតឱ្យ admin, super_admin និង sale_staff រំលងការ Verify Email ក៏បាន
         if ($user->email_verified_at === null && !in_array($user->role, ['admin', 'super_admin', 'sale_staff'])) {
