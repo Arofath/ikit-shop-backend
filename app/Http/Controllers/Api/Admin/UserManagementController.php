@@ -20,6 +20,33 @@ class UserManagementController extends Controller
             ->when($request->filled('role'), function ($query) use ($request) {
                 $query->where('role', $request->role);
             })
+            ->when($request->filled('date_filter'), function ($query) use ($request) {
+                $range = $request->date_filter;
+                $now = \Carbon\Carbon::now();
+
+                switch ($range) {
+                    case 'today':
+                        $query->whereDate('created_at', clone $now);
+                        break;
+                    case 'yesterday':
+                        $query->whereDate('created_at', (clone $now)->subDay());
+                        break;
+                    case 'last_7_days':
+                        $query->whereBetween('created_at', [(clone $now)->subDays(6)->startOfDay(), (clone $now)->endOfDay()]);
+                        break;
+                    case 'last_month':
+                        $lastMonth = (clone $now)->subMonth();
+                        $query->whereMonth('created_at', $lastMonth->month)->whereYear('created_at', $lastMonth->year);
+                        break;
+                    case 'this_year':
+                        $query->whereYear('created_at', $now->year);
+                        break;
+                    case 'this_month':
+                    default:
+                        $query->whereMonth('created_at', $now->month)->whereYear('created_at', $now->year);
+                        break;
+                }
+            })
             ->when($request->filled('is_active'), function ($query) use ($request) {
                 $query->where('is_active', $request->boolean('is_active'));
             })
