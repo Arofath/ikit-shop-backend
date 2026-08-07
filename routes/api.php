@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\OrderController;
 use App\Http\Controllers\Api\Admin\PosController;
 use App\Http\Controllers\Api\Admin\ReportController;
+use App\Http\Controllers\Api\Admin\ShippingZoneController;
 use App\Http\Controllers\Api\Admin\SystemController;
 use App\Http\Controllers\Api\Admin\WarrantyCheckController;
 use App\Http\Controllers\Api\Auth\GoogleAuthController;
@@ -136,6 +137,11 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::post('/check-serial', [PosController::class, 'checkSerial']);
         });
 
+        // View Report
+        Route::get('/reports', [ReportController::class, 'index']);
+        Route::get('/reports/export/excel', [ReportController::class, 'exportExcel']);
+        Route::get('/reports/export/pdf', [ReportController::class, 'exportPdf']);
+
         // Sale Staff ត្រូវការមើលផលិតផល និងឆែក Warranty
         Route::get('/products', [ProductController::class, 'index']);
         Route::get('/products/stats', [ProductController::class, 'getStats']);
@@ -216,10 +222,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::patch('product-serials/{id}/status', [ProductSerialController::class, 'updateStatus']);
         Route::put('product-serials/{id}/serial-number', [ProductSerialController::class, 'updateSerialNumber']);
 
-        // View Report
-        Route::get('/reports', [ReportController::class, 'index']);
-        Route::get('/reports/export/excel', [ReportController::class, 'exportExcel']);
-        Route::get('/reports/export/pdf', [ReportController::class, 'exportPdf']);
+
 
         // Other Configurations (Settings, Warranties, Slideshows, Suppliers)
         Route::apiResource('suppliers', SupplierController::class)->except(['destroy']);
@@ -250,5 +253,8 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         // 🌟 Admin អាចលុប Order បាន ចំណែក Sale ត្រឹមតែអាច Manage
         Route::delete('orders/{id}', [OrderController::class, 'destroy']);
         Route::post('/system/clear-cache', [SystemController::class, 'clearCache']);
+
+        Route::apiResource('shipping-zones', ShippingZoneController::class);
+        Route::patch('shipping-zones/{id}/toggle-status', [ShippingZoneController::class, 'toggleStatus']);
     });
 });
