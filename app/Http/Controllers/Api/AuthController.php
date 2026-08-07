@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
@@ -89,7 +90,16 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email:rfc,dns|unique:users',
             'phone_number' => 'required|string|max:15|unique:users',
-            'password' => 'required|string|min:8|confirmed',
+            'password' => [
+                'required',
+                'confirmed',
+                Password::min(8)
+                    ->letters()         // ត្រូវមានអក្សរ
+                    ->mixedCase()       // ត្រូវមានអក្សរតូច និងអក្សរធំ (aA)
+                    ->numbers()         // ត្រូវមានលេខ (0-9)
+                    ->symbols()         // ត្រូវមានសញ្ញាពិសេស (@, $, !, %...)
+                    ->uncompromised()   // ត្រូវប្រាកដថាលេខសម្ងាត់នេះមិនធ្លាប់បែកធ្លាយក្នុង Data Breaches លើអ៊ីនធឺណិត
+            ],
         ]);
 
         return DB::transaction(function () use ($request) {
@@ -351,7 +361,16 @@ class AuthController extends Controller
         $request->validate([
             'email' => 'required|email|exists:users,email',
             'otp_code' => 'required|string|size:6',
-            'password' => 'required|string|min:8|confirmed',
+            'password' => [
+                'required',
+                'confirmed',
+                Password::min(8)
+                    ->letters()         // ត្រូវមានអក្សរ
+                    ->mixedCase()       // ត្រូវមានអក្សរតូច និងអក្សរធំ (aA)
+                    ->numbers()         // ត្រូវមានលេខ (0-9)
+                    ->symbols()         // ត្រូវមានសញ្ញាពិសេស (@, $, !, %...)
+                    ->uncompromised()   // ត្រូវប្រាកដថាលេខសម្ងាត់នេះមិនធ្លាប់បែកធ្លាយក្នុង Data Breaches លើអ៊ីនធឺណិត
+            ],
         ]);
 
         $user = User::where('email', $request->email)->first();
@@ -379,7 +398,16 @@ class AuthController extends Controller
     {
         $request->validate([
             'current_password' => 'required',
-            'new_password' => 'required|min:8|confirmed',
+            'new_password' => [
+                'required',
+                'confirmed',
+                Password::min(8)
+                    ->letters()
+                    ->mixedCase()
+                    ->numbers()
+                    ->symbols()
+                    ->uncompromised()
+            ],
         ]);
 
         $user = $request->user();
@@ -435,7 +463,16 @@ class AuthController extends Controller
         $request->validate([
             'email' => 'required|email|exists:users,email',
             'otp_code' => 'required|string|size:6',
-            'password' => 'required|string|min:8|confirmed',
+            'password' => [
+                'required',
+                'confirmed',
+                Password::min(8)
+                    ->letters()         // ត្រូវមានអក្សរ
+                    ->mixedCase()       // ត្រូវមានអក្សរតូច និងអក្សរធំ (aA)
+                    ->numbers()         // ត្រូវមានលេខ (0-9)
+                    ->symbols()         // ត្រូវមានសញ្ញាពិសេស (@, $, !, %...)
+                    ->uncompromised()   // ត្រូវប្រាកដថាលេខសម្ងាត់នេះមិនធ្លាប់បែកធ្លាយក្នុង Data Breaches លើអ៊ីនធឺណិត
+            ],
         ]);
 
         $user = User::where('email', $request->email)->first();
@@ -480,7 +517,16 @@ class AuthController extends Controller
         $request->validate([
             'email' => 'required|email|exists:users,email',
             'current_password' => 'required|string',
-            'password' => 'required|string|min:8|confirmed',
+            'new_password' => [
+                'required',
+                'confirmed',
+                Password::min(8)
+                    ->letters()
+                    ->mixedCase()
+                    ->numbers()
+                    ->symbols()
+                    ->uncompromised()
+            ],
         ]);
 
         $user = User::where('email', $request->email)->first();
