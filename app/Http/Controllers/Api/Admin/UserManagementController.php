@@ -16,7 +16,6 @@ class UserManagementController extends Controller
         $currentUser = $request->user();
 
         $users = User::with('profile')
-            // 🌟 កែប្រែ៖ ដកលក្ខខណ្ឌដែលលាក់មិនឱ្យ Admin ឃើញបុគ្គលិកចេញ
             ->when($request->filled('role'), function ($query) use ($request) {
                 $query->where('role', $request->role);
             })
@@ -73,28 +72,23 @@ class UserManagementController extends Controller
         $validated = $request->validate([
             'name'     => 'required|string|max:255',
             'email'    => 'required|string|email|max:255|unique:users',
-            'role'     => 'required|in:sale_staff,admin,super_admin',
+            'role'     => 'required|exists:roles,name',
             'password' => 'required|string|min:8',
             'require_password_change' => 'boolean',
         ]);
 
-        // ការពារមានតែ Super Admin ទេទើបអាចបង្កើត Admin ឬ Super Admin ថ្មីបាន
         if (in_array($request->role, ['admin', 'super_admin']) && !$currentUser->isSuperAdmin()) {
-            return $this->sendError('Unauthorized: Only Super Admin can create admin accounts.', [], 403);
+            return $this->sendError('Unauthorized: Only Super Admin can create core admin accounts.', [], 403);
         }
 
         $validated['password'] = Hash::make($validated['password']);
-
         $validated['is_active'] = true;
-        // 🌟 ត្រូវតែបន្ថែមបន្ទាត់នេះដាច់ខាត ដើម្បីការពារកុំឱ្យទាមទារ OTP ពេល Login លើកដំបូង
         $validated['is_2fa_enabled'] = false;
-
         $validated['require_password_change'] = $request->boolean('require_password_change', true);
 
-        // បង្កើតគណនី
         $user = clone User::create($validated);
-        // បង្កើត Profile ទទេមួយភ្ជាប់ទៅជាមួយ
         $user->profile()->firstOrCreate([]);
+        $user->assignRole($request->role);
 
         return $this->sendResponse(new UserResource($user->load('profile')), 'Account created successfully.', 201);
     }
@@ -128,12 +122,10 @@ class UserManagementController extends Controller
     }
 
     // Change role
-    // មុខងារសម្រាប់ផ្លាស់ប្តូរ Role
     public function updateRole(Request $request, string $id)
     {
         $request->validate([
-            // 🌟 កែប្រែ៖ ដក 'customer' ចេញដូចគ្នា
-            'role' => 'required|in:sale_staff,admin,super_admin',
+            'role' => 'required|exists:roles,name',
         ]);
 
         $user = User::findOrFail($id);
@@ -148,6 +140,7 @@ class UserManagementController extends Controller
         }
 
         $user->update(['role' => $request->role]);
+        $user->syncRoles([$request->role]);
 
         return $this->sendResponse(new UserResource($user->load('profile')), 'User role updated successfully.');
     }

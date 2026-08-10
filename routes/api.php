@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\Admin\DashboardController;
 use App\Http\Controllers\Api\Admin\OrderController;
 use App\Http\Controllers\Api\Admin\PosController;
 use App\Http\Controllers\Api\Admin\ReportController;
+use App\Http\Controllers\Api\Admin\RoleController;
 use App\Http\Controllers\Api\Admin\ShippingZoneController;
 use App\Http\Controllers\Api\Admin\SystemController;
 use App\Http\Controllers\Api\Admin\WarrantyCheckController;
@@ -179,6 +180,10 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::patch('/{id}/role', [UserManagementController::class, 'updateRole']);
             Route::delete('/{id}', [UserManagementController::class, 'destroy']);
         });
+
+        Route::get('/permissions', [RoleController::class, 'getPermissions']);
+        Route::apiResource('roles', RoleController::class);
+
 
         // Manage Product
         Route::put('/categories/reorder', [CategoryController::class, 'reorder']);

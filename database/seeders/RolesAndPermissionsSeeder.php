@@ -11,53 +11,61 @@ class RolesAndPermissionsSeeder extends Seeder
 {
     public function run(): void
     {
-        // 🌟 ១. សម្អាត Cache របស់ Spatie ជាមុនសិន ដើម្បីកុំឱ្យមានបញ្ហាពេល Run
+        // ១. សម្អាត Cache របស់ Spatie
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // 🌟 ២. បង្កើតបញ្ជី Permissions ទាំងអស់ដែលយើងត្រូវការ
+        // ២. បង្កើតបញ្ជី Permissions ដោយមាន group_name
         $permissions = [
-            'view-dashboard',
-            'manage-products',   // រួមបញ្ចូលការ បង្កើត កែប្រែ លុប ទំនិញ
-            'manage-categories', // រួមបញ្ចូលការ បង្កើត កែប្រែ លុប ប្រភេទ
-            'manage-brands',
-            'manage-orders',     // ផ្លាស់ប្តូរស្ថានភាពបញ្ជាទិញ
-            'manage-users',      // គ្រប់គ្រងគណនី Admin ឬ Customer ផ្សេងៗ
-            'manage-settings',   // កែប្រែ Settings របស់ System
-            'view-reports',
+            ['name' => 'view-dashboard', 'group_name' => 'Analytics'],
+            ['name' => 'view-reports', 'group_name' => 'Analytics'],
+            ['name' => 'view-products', 'group_name' => 'Products'],
+            ['name' => 'create-products', 'group_name' => 'Products'],
+            ['name' => 'edit-products', 'group_name' => 'Products'],
+            ['name' => 'delete-products', 'group_name' => 'Products'],
+            ['name' => 'view-orders', 'group_name' => 'Orders'],
+            ['name' => 'edit-orders', 'group_name' => 'Orders'],
+            ['name' => 'delete-orders', 'group_name' => 'Orders'],
+            ['name' => 'view-users', 'group_name' => 'User Management'],
+            ['name' => 'manage-users', 'group_name' => 'User Management'],
+            ['name' => 'manage-roles', 'group_name' => 'User Management'],
+            ['name' => 'manage-settings', 'group_name' => 'Settings'],
         ];
 
-        // បញ្ចូល Permissions ទៅក្នុង Database
-        foreach ($permissions as $permission) {
-            Permission::firstOrCreate(['name' => $permission]);
+        foreach ($permissions as $perm) {
+            Permission::firstOrCreate(
+                ['name' => $perm['name']],
+                ['group_name' => $perm['group_name']]
+            );
         }
 
-        // 🌟 ៣. បង្កើត Roles និងចង Permissions ទៅឱ្យ Role នីមួយៗ
-
-        // ក. Role: Customer (ជាធម្មតាមិនសូវមាន Permission ពិសេសទេ ព្រោះសិទ្ធិទូទៅគឺអាចទិញទំនិញបាន)
+        // ៣. បង្កើត Roles និងចង Permissions
         Role::firstOrCreate(['name' => 'customer']);
 
-        // ខ. Role: Sale Staff (បុគ្គលិកផ្នែកលក់)
         $saleStaffRole = Role::firstOrCreate(['name' => 'sale_staff']);
-        $saleStaffRole->givePermissionTo([
+        // 🌟 កែប្រែ៖ ប្រើប្រាស់ឈ្មោះ Permission ឱ្យត្រូវនឹងខាងលើ
+        $saleStaffRole->syncPermissions([
             'view-dashboard',
-            'manage-orders',
+            'view-orders',
+            'edit-orders',
             'view-reports'
         ]);
 
-        // គ. Role: Admin (អ្នកគ្រប់គ្រងទូទៅ)
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
-        $adminRole->givePermissionTo([
+        // 🌟 កែប្រែ៖ ផ្តល់សិទ្ធិទាំងអស់វាងលែងតែ manage-roles
+        $adminRole->syncPermissions([
             'view-dashboard',
-            'manage-products',
-            'manage-categories',
-            'manage-brands',
-            'manage-orders',
             'view-reports',
-            'manage-users' // អាចបង្កើត staff ថ្មីបាន តែមិនអាចប៉ះពាល់ super_admin
+            'view-products',
+            'create-products',
+            'edit-products',
+            'delete-products',
+            'view-orders',
+            'edit-orders',
+            'delete-orders',
+            'view-users',
+            'manage-users'
         ]);
 
-        // ឃ. Role: Super Admin (មេធំ)
-        // ចំណាំ៖ យើងមិនចាំបាច់ givePermissionTo ឱ្យ Super Admin ទេ ព្រោះយើងនឹងប្រើ Gate ដើម្បី Bypass គ្រប់សិទ្ធិរបស់គាត់
         Role::firstOrCreate(['name' => 'super_admin']);
     }
 }
