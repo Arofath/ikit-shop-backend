@@ -78,8 +78,9 @@ class UserManagementController extends Controller
             'require_password_change' => 'boolean',
         ]);
 
-        if (in_array($request->role, ['admin', 'super_admin']) && !$currentUser->isSuperAdmin()) {
-            return $this->sendError('Unauthorized: Only Super Admin can create core admin accounts.', [], 403);
+        // 🌟 ច្បាប់តឹងរ៉ឹង៖ Admin ធម្មតាមិនអាចបង្កើតគណនី Super Admin បានទេ
+        if ($request->role === 'super_admin' && !$currentUser->hasRole('super_admin')) {
+            return $this->sendError('Unauthorized: Only Super Admin can create new super admin accounts.', [], 403);
         }
 
         $validated['password'] = Hash::make($validated['password']);
@@ -89,6 +90,8 @@ class UserManagementController extends Controller
 
         $user = clone User::create($validated);
         $user->profile()->firstOrCreate([]);
+
+        // ផ្តល់សិទ្ធិតាមរយៈ Spatie
         $user->assignRole($request->role);
 
         return $this->sendResponse(new UserResource($user->load('profile')), 'Account created successfully.', 201);
@@ -113,7 +116,8 @@ class UserManagementController extends Controller
             return $this->sendError('You cannot disable your own account.', [], 403);
         }
 
-        if ($user->isSuperAdmin() && !$currentUser->isSuperAdmin()) {
+        // 🌟 ការពារមិនឱ្យ Admin ធម្មតា បិទគណនីរបស់ Super Admin
+        if ($user->hasRole('super_admin') && !$currentUser->hasRole('super_admin')) {
             return $this->sendError('Unauthorized: Cannot modify Super Admin status.', [], 403);
         }
 
@@ -136,10 +140,17 @@ class UserManagementController extends Controller
             return $this->sendError('You cannot change your own role.', [], 403);
         }
 
-        if (!$currentUser->isSuperAdmin()) {
-            return $this->sendError('Unauthorized: Only Super Admin can change user roles.', [], 403);
+        // 🌟 ច្បាប់តឹងរ៉ឹង៖ 
+        // ១. ហាម Admin ធម្មតា ដកសិទ្ធិពី Super Admin ចាស់
+        // ២. ហាម Admin ធម្មតា ផ្តល់សិទ្ធិ Super Admin ទៅកាន់នរណាម្នាក់
+        $isTargetSuperAdmin = $user->hasRole('super_admin');
+        $isAssigningSuperAdmin = $request->role === 'super_admin';
+
+        if (($isTargetSuperAdmin || $isAssigningSuperAdmin) && !$currentUser->hasRole('super_admin')) {
+            return $this->sendError('Unauthorized: Only Super Admin can manage super admin privileges.', [], 403);
         }
 
+        // រក្សាការ Update Column ចាស់ (បើចាំបាច់) និងប្រើប្រាស់ Spatie ឱ្យ Sync ថ្មី
         $user->update(['role' => $request->role]);
         $user->syncRoles([$request->role]);
 
@@ -152,12 +163,14 @@ class UserManagementController extends Controller
         $userToDelete = User::findOrFail($id);
         $currentUser = $request->user();
 
+        // 🌟 ការពារ System Owner មិនឱ្យគេលុបបានទាល់តែសោះ
         if ($userToDelete->email === config('app.super_admin_email')) {
             return $this->sendError('Unauthorized: The primary system owner account cannot be deleted.', [], 403);
         }
 
-        if (($userToDelete->role === 'admin' || $userToDelete->isSuperAdmin()) && !$currentUser->isSuperAdmin()) {
-            return $this->sendError('Unauthorized: Only Super Admin can delete other admins.', [], 403);
+        // 🌟 ប្រើប្រាស់ Spatie: Admin ធម្មតា មិនអាចលុប Admin ដូចគ្នា ឬ Super Admin បានទេ
+        if (($userToDelete->hasRole('admin') || $userToDelete->hasRole('super_admin')) && !$currentUser->hasRole('super_admin')) {
+            return $this->sendError('Unauthorized: Only Super Admin can delete admin or super admin accounts.', [], 403);
         }
 
         if ($currentUser->id === $userToDelete->id) {
