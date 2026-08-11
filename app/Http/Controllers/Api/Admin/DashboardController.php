@@ -17,7 +17,7 @@ class DashboardController extends Controller
     {
         // 🌟 ១. ចាប់យក User បច្ចុប្បន្ន និងឆែកមើលតួនាទី 
         $user = $request->user();
-        $isSaleStaff = $user->role === 'sale_staff';
+        $isSaleStaff = $user->hasRole('sale_staff');
 
         // ==========================================
         // 🌟 ២. ចាប់យក និងត្រួតពិនិត្យ Filter Parameters ផ្អែកលើ Role
@@ -56,9 +56,12 @@ class DashboardController extends Controller
                 ->sum('grand_total'),
 
             'total_orders'    => Order::whereBetween('created_at', [$cardStart, $cardEnd])->count(),
-            'active_customers' => User::where('role', 'customer')
+
+            // 👈 កែប្រែកន្លែងនេះទៅប្រើ scope role()
+            'active_customers' => User::role('customer')
                 ->whereBetween('created_at', [$cardStart, $cardEnd])
                 ->count(),
+
             'pending_orders'  => Order::whereBetween('created_at', [$cardStart, $cardEnd])->where('status', 'PENDING')->count(),
             'total_products'  => Product::count(),
         ];
@@ -175,7 +178,7 @@ class DashboardController extends Controller
             'out_of_stock' => $productsWithStock->where('current_stock', '<=', 0)->take(4)->values(),
         ];
 
-        $recentCustomersRaw = User::where('role', 'customer')->latest()->take(3)->get();
+        $recentCustomersRaw = User::role('customer')->latest()->take(3)->get();
         $recentCustomers = $recentCustomersRaw->map(function ($user) {
             return [
                 'name'   => $user->name,

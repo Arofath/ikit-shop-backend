@@ -22,6 +22,7 @@ class RolesAndPermissionsSeeder extends Seeder
             ['name' => 'create-products', 'group_name' => 'Products'],
             ['name' => 'edit-products', 'group_name' => 'Products'],
             ['name' => 'delete-products', 'group_name' => 'Products'],
+            ['name' => 'manage-serials', 'group_name' => 'Products'],
             ['name' => 'view-orders', 'group_name' => 'Orders'],
             ['name' => 'edit-orders', 'group_name' => 'Orders'],
             ['name' => 'delete-orders', 'group_name' => 'Orders'],
