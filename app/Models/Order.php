@@ -19,6 +19,9 @@ class Order extends Model
         'shipping_name',
         'shipping_phone',
         'shipping_address',
+        'shipping_zone_id',      
+        'base_shipping_cost',    
+        'bulky_surcharge_total',
         'subtotal',
         'discount_total',
         'shipping_fee',
@@ -63,5 +66,10 @@ class Order extends Model
     public function paymentProcessor()
     {
         return $this->belongsTo(User::class, 'payment_processed_by');
+    }
+
+    public function shippingZone()
+    {
+        return $this->belongsTo(ShippingZone::class, 'shipping_zone_id');
     }
 }

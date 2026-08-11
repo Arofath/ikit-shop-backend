@@ -10,8 +10,12 @@ class UserProfile extends Model
     use HasFactory;
 
     protected $fillable = [
-        'profile_image',
         'gender',
+        'date_of_birth',
+        'address', // ត្រូវប្រាកដថាមានពាក្យនេះនៅទីនេះ
+        'position',
+        'bio',
+        'profile_image'
     ];
 
     protected function casts(): array

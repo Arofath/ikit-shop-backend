@@ -24,6 +24,7 @@ class Product extends Model
         'price',
         'cost_price',
         'discount_percent',
+        'shipping_surcharge',
         'is_active',
         'is_serialized',
         'is_recommended',
@@ -35,9 +36,10 @@ class Product extends Model
     {
         return [
             'price' => 'decimal:2',
+            'shipping_surcharge' => 'decimal:2', // 🌟 បន្ថែមការ Cast នេះ
             'discount_percent' => 'decimal:2',
             'is_active' => 'boolean',
-            'is_serialized',
+            'is_serialized' => 'boolean', // 
         ];
     }
 
