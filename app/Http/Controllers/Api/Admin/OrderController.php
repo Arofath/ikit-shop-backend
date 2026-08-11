@@ -90,7 +90,7 @@ class OrderController extends Controller
             $query->where('status', $request->status);
         }
 
-        // 2. Filter តាម Payment Status (បន្ថែមថ្មីឱ្យស្របនឹងការ Filter របស់ Index)
+        // 2. Filter តាម Payment Status
         if ($request->has('payment_status') && $request->payment_status != '') {
             $query->where('payment_status', $request->payment_status);
         }
@@ -113,13 +113,15 @@ class OrderController extends Controller
 
         // គណនាទិន្នន័យសរុប
         $totalOrders = (clone $query)->count();
-
-        // គណនាចំណូល (មិនបូកបញ្ចូល Order ដែលត្រូវបាន CANCELLED ទេ)
         $totalRevenue = (clone $query)->where('status', '!=', 'CANCELLED')->sum('grand_total');
 
-        // រាប់ចំនួនតាម Status សំខាន់ៗ
+        // 🌟 KPI សម្រាប់ទំព័រ Orders (Order Status)
         $pendingOrders = (clone $query)->where('status', 'PENDING')->count();
         $completedOrders = (clone $query)->where('status', 'COMPLETED')->count();
+
+        // 🌟 KPI សម្រាប់ទំព័រ Invoices (Payment Status) បន្ថែមថ្មី
+        $unpaidInvoices = (clone $query)->where('payment_status', 'UNPAID')->count();
+        $paidInvoices = (clone $query)->where('payment_status', 'PAID')->count();
 
         return response()->json([
             'success' => true,
@@ -128,6 +130,8 @@ class OrderController extends Controller
                 'total_revenue'    => $totalRevenue,
                 'pending_orders'   => $pendingOrders,
                 'completed_orders' => $completedOrders,
+                'unpaid_invoices'  => $unpaidInvoices, // 🌟 បោះទិន្នន័យនេះទៅឱ្យ Vue
+                'paid_invoices'    => $paidInvoices,   // 🌟 បោះទិន្នន័យនេះទៅឱ្យ Vue
             ]
         ]);
     }
