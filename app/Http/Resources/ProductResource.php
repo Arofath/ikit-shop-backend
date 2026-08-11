@@ -25,6 +25,7 @@ class ProductResource extends JsonResource
             'sku'              => $this->sku,
             'price'            => (float) $this->price,
             'cost_price' => $this->when($isAdmin, $this->cost_price),
+            'shipping_surcharge' => (float) $this->shipping_surcharge,
             'discount_percent' => (float) $this->discount_percent,
             'final_price'      => (float) ($this->price - ($this->price * ($this->discount_percent / 100))),
             'description'      => $this->description,
