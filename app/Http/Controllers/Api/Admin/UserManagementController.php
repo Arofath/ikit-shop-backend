@@ -17,7 +17,8 @@ class UserManagementController extends Controller
 
         $users = User::with('profile')
             ->when($request->filled('role'), function ($query) use ($request) {
-                $query->where('role', $request->role);
+                // 🌟 Spatie មាន scope ឈ្មោះ `role()` ស្រាប់ ដើម្បីទាញយក User ពីតារាងថ្មីដោយស្វ័យប្រវត្តិ
+                $query->role($request->role);
             })
             ->when($request->filled('date_filter'), function ($query) use ($request) {
                 $range = $request->date_filter;
