@@ -71,6 +71,7 @@ Route::get('/warranty-check', [PublicWarrantyController::class, 'check']);
 Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
+    Route::get('/auth/me', [AuthController::class, 'me']);
 
     // Profile & Notifications
     Route::prefix('me')->group(function () {

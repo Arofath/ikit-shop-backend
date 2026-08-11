@@ -549,4 +549,14 @@ class AuthController extends Controller
 
         return $this->sendResponse([], 'Password has been successfully updated. You can now log in.', 200);
     }
+
+    public function me(Request $request)
+    {
+        $user = $request->user();
+
+        // ប្រើប្រាស់ UserResource ដូចកាលពីពេល Login ដែរ ដើម្បីឱ្យវាបោះ Roles & Permissions មកជាមួយ
+        return $this->sendResponse([
+            'user' => new UserResource($user->load('profile'))
+        ], 'Current user fetched successfully.');
+    }
 }
