@@ -19,9 +19,8 @@ class RoleController extends Controller
     public function index()
     {
         // 🌟 ដោះស្រាយបញ្ហា "Class name must be a valid object or a string"
-        // ដោយប្តូរពីការប្រើ withCount('users') មក Query រាប់ដោយផ្ទាល់ពី DB វិញ
-
-        $roles = Role::orderBy('created_at', 'desc')->get()->map(function ($role) {
+        // 🌟 ដំណោះស្រាយ: បន្ថែម with('permissions') នៅទីនេះដើម្បីទាញយកសិទ្ធិមកជាមួយពេល Refresh
+        $roles = Role::with('permissions')->orderBy('created_at', 'desc')->get()->map(function ($role) {
             // រាប់ចំនួន User ដែលកាន់ Role នេះចេញពីតារាង model_has_roles
             $role->users_count = DB::table(config('permission.table_names.model_has_roles'))
                 ->where('role_id', $role->id)
