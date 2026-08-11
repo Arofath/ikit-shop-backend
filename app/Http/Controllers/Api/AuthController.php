@@ -177,21 +177,16 @@ class AuthController extends Controller
             );
         }
 
-        // // 🌟 បន្ថែមថ្មី៖ បិទមិនឱ្យ Customer ចូលក្នុង Admin System នេះបានឡើយ
-        // if ($user->role === 'customer') {
-        //     return $this->sendError('Access denied. Please use the customer portal to log in.', [], 403);
-        // }
-
-        // 🌟 អនុញ្ញាតឱ្យ admin, super_admin និង sale_staff រំលងការ Verify Email ក៏បាន
-        if ($user->email_verified_at === null && !in_array($user->role, ['admin', 'super_admin', 'sale_staff'])) {
+        // 🌟 កែប្រែទី១៖ អនុញ្ញាតឱ្យអ្នកមានសិទ្ធិចូល Dashboard ឬជា Super Admin រំលងការ Verify Email បាន
+        if ($user->email_verified_at === null && !$user->hasRole('super_admin') && !$user->hasPermissionTo('view-dashboard')) {
             return $this->sendError('Your email address is not verified. Please verify your email before logging in.', ['needs_verification' => true, 'email' => $user->email], 403);
         }
 
         RateLimiter::clear($throttleKey);
         $user->update(['last_login_at' => now()]);
 
-        // 🌟 បញ្ចូល sale_staff ទៅក្នុងប្រព័ន្ធ OTP របស់បុគ្គលិក
-        if (in_array($user->role, ['admin', 'super_admin', 'sale_staff'])) {
+        // 🌟 កែប្រែទី២៖ បញ្ចូលបុគ្គលិកដែលមានសិទ្ធិគ្រប់គ្រង ទៅក្នុងប្រព័ន្ធ OTP
+        if ($user->hasRole('super_admin') || $user->hasPermissionTo('view-dashboard')) {
             $bypassOtp = env('BYPASS_OTP_ON_LOCAL', false);
 
             if ($bypassOtp || $user->is_2fa_enabled == false) {
@@ -209,7 +204,7 @@ class AuthController extends Controller
             return $this->sendResponse($data, 'Staff credentials verified. OTP is required.', 200);
         }
 
-        // កូដនេះនឹងមិនដើរដល់ទេ ព្រោះយើងបាន Block Customer ខាងលើបាត់ហើយ តែទុកក៏មិនអីដែរ
+        // កូដនេះសម្រាប់ Customer
         $token = $user->createToken('api_token')->plainTextToken;
         $data = ['user' => new UserResource($user->load('profile')), 'token' => $token];
         return $this->sendResponse($data, 'Login successful.', 200);
@@ -224,8 +219,8 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        // 🌟 បន្ថែម sale_staff
-        if (!in_array($user->role, ['admin', 'super_admin', 'sale_staff'])) {
+        // 🌟 កែប្រែ៖ ឆែកសិទ្ធិដោយប្រើ Spatie
+        if (!$user->hasRole('super_admin') && !$user->hasPermissionTo('view-dashboard')) {
             return $this->sendError('Unauthorized access.', [], 403);
         }
 
@@ -440,8 +435,8 @@ class AuthController extends Controller
         $request->validate(['email' => 'required|email|exists:users,email']);
         $user = User::where('email', $request->email)->first();
 
-        // 🌟 បន្ថែម sale_staff
-        if (!in_array($user->role, ['admin', 'super_admin', 'sale_staff'])) {
+        // 🌟 កែប្រែ៖ ឆែកសិទ្ធិដោយប្រើ Spatie
+        if (!$user->hasRole('super_admin') && !$user->hasPermissionTo('view-dashboard')) {
             return $this->sendError('Unauthorized access. This endpoint is for staff only.', [], 403);
         }
 
@@ -467,18 +462,18 @@ class AuthController extends Controller
                 'required',
                 'confirmed',
                 Password::min(8)
-                    ->letters()         // ត្រូវមានអក្សរ
-                    ->mixedCase()       // ត្រូវមានអក្សរតូច និងអក្សរធំ (aA)
-                    ->numbers()         // ត្រូវមានលេខ (0-9)
-                    ->symbols()         // ត្រូវមានសញ្ញាពិសេស (@, $, !, %...)
-                    ->uncompromised()   // ត្រូវប្រាកដថាលេខសម្ងាត់នេះមិនធ្លាប់បែកធ្លាយក្នុង Data Breaches លើអ៊ីនធឺណិត
+                    ->letters()
+                    ->mixedCase()
+                    ->numbers()
+                    ->symbols()
+                    ->uncompromised()
             ],
         ]);
 
         $user = User::where('email', $request->email)->first();
 
-        // 🌟 បន្ថែម sale_staff
-        if (!in_array($user->role, ['admin', 'super_admin', 'sale_staff'])) {
+        // 🌟 កែប្រែ៖ ឆែកសិទ្ធិដោយប្រើ Spatie
+        if (!$user->hasRole('super_admin') && !$user->hasPermissionTo('view-dashboard')) {
             return $this->sendError('Unauthorized access.', [], 403);
         }
 
@@ -502,8 +497,8 @@ class AuthController extends Controller
         $request->validate(['is_2fa_enabled' => 'required|boolean']);
         $user = $request->user();
 
-        // 🌟 បន្ថែម sale_staff
-        if (!in_array($user->role, ['admin', 'super_admin', 'sale_staff'])) {
+        // 🌟 កែប្រែ៖ ឆែកសិទ្ធិដោយប្រើ Spatie
+        if (!$user->hasRole('super_admin') && !$user->hasPermissionTo('view-dashboard')) {
             return $this->sendError('Unauthorized to change 2FA settings.', [], 403);
         }
 
