@@ -123,6 +123,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         // Manage Order & Make Invoice
         Route::prefix('orders')->group(function () {
             Route::get('/', [OrderController::class, 'index']);
+            Route::get('/kpis', [OrderController::class, 'getKpis']);
             Route::get('/{id}', [OrderController::class, 'show']);
             Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
             Route::put('/{id}/payment-status', [OrderController::class, 'updatePaymentStatus']);

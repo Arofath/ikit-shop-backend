@@ -81,6 +81,57 @@ class OrderController extends Controller
         }
     }
 
+    public function getKpis(Request $request)
+    {
+        $query = Order::query();
+
+        // 1. Filter តាម Status
+        if ($request->has('status') && $request->status != '') {
+            $query->where('status', $request->status);
+        }
+
+        // 2. Filter តាម Payment Status (បន្ថែមថ្មីឱ្យស្របនឹងការ Filter របស់ Index)
+        if ($request->has('payment_status') && $request->payment_status != '') {
+            $query->where('payment_status', $request->payment_status);
+        }
+
+        // 3. Filter តាមការ Search
+        if ($request->has('search') && $request->search != '') {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('order_number', 'LIKE', "%{$search}%")
+                    ->orWhere('shipping_name', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // 4. Filter តាមថ្ងៃខែ
+        if ($request->has('date_filter') && $request->date_filter != '') {
+            $range = $request->date_filter;
+            [$start, $end] = $this->getDatesFromRange($range);
+            $query->whereBetween('created_at', [$start, $end]);
+        }
+
+        // គណនាទិន្នន័យសរុប
+        $totalOrders = (clone $query)->count();
+
+        // គណនាចំណូល (មិនបូកបញ្ចូល Order ដែលត្រូវបាន CANCELLED ទេ)
+        $totalRevenue = (clone $query)->where('status', '!=', 'CANCELLED')->sum('grand_total');
+
+        // រាប់ចំនួនតាម Status សំខាន់ៗ
+        $pendingOrders = (clone $query)->where('status', 'PENDING')->count();
+        $completedOrders = (clone $query)->where('status', 'COMPLETED')->count();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'total_orders'     => $totalOrders,
+                'total_revenue'    => $totalRevenue,
+                'pending_orders'   => $pendingOrders,
+                'completed_orders' => $completedOrders,
+            ]
+        ]);
+    }
+
     /**
      * ២. មើលព័ត៌មានលម្អិតនៃវិក្កយបត្រណាមួយ
      */
