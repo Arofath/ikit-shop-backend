@@ -14,22 +14,43 @@ class RolesAndPermissionsSeeder extends Seeder
         // ១. សម្អាត Cache របស់ Spatie
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // ២. បង្កើតបញ្ជី Permissions ដោយមាន group_name
+        // ២. បង្កើតបញ្ជី Permissions ដោយបែងចែក group_name ស្របតាម Sidebar ទាំងស្រុង
         $permissions = [
+            // Analytics & Reports
             ['name' => 'view-dashboard', 'group_name' => 'Analytics'],
             ['name' => 'view-reports', 'group_name' => 'Analytics'],
-            ['name' => 'view-products', 'group_name' => 'Products'],
-            ['name' => 'create-products', 'group_name' => 'Products'],
-            ['name' => 'edit-products', 'group_name' => 'Products'],
-            ['name' => 'delete-products', 'group_name' => 'Products'],
-            ['name' => 'manage-serials', 'group_name' => 'Products'],
-            ['name' => 'view-orders', 'group_name' => 'Orders'],
-            ['name' => 'edit-orders', 'group_name' => 'Orders'],
-            ['name' => 'delete-orders', 'group_name' => 'Orders'],
+
+            // Catalog (Products, Categories, Brands, Warranties)
+            ['name' => 'view-products', 'group_name' => 'Catalog'],
+            ['name' => 'create-products', 'group_name' => 'Catalog'],
+            ['name' => 'edit-products', 'group_name' => 'Catalog'],
+            ['name' => 'delete-products', 'group_name' => 'Catalog'],
+            ['name' => 'manage-categories', 'group_name' => 'Catalog'],
+            ['name' => 'manage-brands', 'group_name' => 'Catalog'],
+
+            // Inventory & Logistics
+            ['name' => 'manage-inventory', 'group_name' => 'Inventory & Logistics'],
+            ['name' => 'manage-serials', 'group_name' => 'Inventory & Logistics'],
+            ['name' => 'manage-suppliers', 'group_name' => 'Inventory & Logistics'],
+
+            // Sales & Orders
+            ['name' => 'view-orders', 'group_name' => 'Sales & Orders'],
+            ['name' => 'edit-orders', 'group_name' => 'Sales & Orders'],
+            ['name' => 'delete-orders', 'group_name' => 'Sales & Orders'],
+
+            // Storefront
+            ['name' => 'manage-storefront', 'group_name' => 'Storefront'],
+
+            // Customer Support
+            ['name' => 'manage-support', 'group_name' => 'Customer Support'],
+
+            // User Management
             ['name' => 'view-users', 'group_name' => 'User Management'],
             ['name' => 'manage-users', 'group_name' => 'User Management'],
             ['name' => 'manage-roles', 'group_name' => 'User Management'],
-            ['name' => 'manage-settings', 'group_name' => 'Settings'],
+
+            // Settings & System
+            ['name' => 'manage-settings', 'group_name' => 'Settings & System'],
         ];
 
         foreach ($permissions as $perm) {
@@ -43,7 +64,6 @@ class RolesAndPermissionsSeeder extends Seeder
         Role::firstOrCreate(['name' => 'customer']);
 
         $saleStaffRole = Role::firstOrCreate(['name' => 'sale_staff']);
-        // 🌟 កែប្រែ៖ ប្រើប្រាស់ឈ្មោះ Permission ឱ្យត្រូវនឹងខាងលើ
         $saleStaffRole->syncPermissions([
             'view-dashboard',
             'view-orders',
@@ -52,7 +72,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ]);
 
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
-        // 🌟 កែប្រែ៖ ផ្តល់សិទ្ធិទាំងអស់វាងលែងតែ manage-roles
+        // Admin បានសិទ្ធិគ្រប់យ៉ាងលើកលែងតែ manage-roles
         $adminRole->syncPermissions([
             'view-dashboard',
             'view-reports',
@@ -60,13 +80,23 @@ class RolesAndPermissionsSeeder extends Seeder
             'create-products',
             'edit-products',
             'delete-products',
+            'manage-categories',
+            'manage-brands',
+            'manage-inventory',
+            'manage-serials',
+            'manage-suppliers',
             'view-orders',
             'edit-orders',
             'delete-orders',
+            'manage-storefront',
+            'manage-support',
             'view-users',
-            'manage-users'
+            'manage-users',
+            'manage-settings'
         ]);
 
-        Role::firstOrCreate(['name' => 'super_admin']);
+        $superAdminRole = Role::firstOrCreate(['name' => 'super_admin']);
+        // Super Admin អាចយកគ្រប់ Permissions ទាំងអស់ដោយស្វ័យប្រវត្តិក៏បាន ឬ sync ទាំងអស់ក៏បាន
+        $superAdminRole->syncPermissions(Permission::all());
     }
 }
