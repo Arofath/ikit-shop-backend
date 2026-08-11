@@ -109,6 +109,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::patch('/{id}/set-default', [AddressController::class, 'setAsDefault']);
         Route::delete('/{id}', [AddressController::class, 'destroy']);
     });
+    Route::get('/shipping-zones', [ShippingZoneController::class, 'index']);
 
 
     // =============================================================
