@@ -20,7 +20,8 @@ class OrderController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Order::with(['user', 'payment', 'items'])->latest();
+        // 🌟 បន្ថែម 'shippingZone' ចូលទៅក្នុង Eager Loading
+        $query = Order::with(['user', 'payment', 'items', 'shippingZone'])->latest();
 
         // 🌟 Admin អាច Filter មើលតែ Order ណាដែល PENDING ឬ COMPLETED បាន
         if ($request->has('status') && $request->status != '') {
@@ -85,14 +86,15 @@ class OrderController extends Controller
      */
     public function show($id)
     {
-        // 🌟 ថែម 'statusUpdater' និង 'paymentProcessor' ចូលទៅក្នុង with()
+        // 🌟 ថែម 'shippingZone' ចូលទៅក្នុង with() ដើម្បីបង្ហាញលើ Order Detail
         $order = Order::with([
             'user',
             'items.product.thumbnail',
             'items.product.serials',
             'payment',
-            'statusUpdater',     // ទាញយកអ្នកប្តូរ Order Status
-            'paymentProcessor'   // ទាញយកអ្នកប្តូរ Payment Status
+            'statusUpdater',
+            'paymentProcessor',
+            'shippingZone'       // 🌟 ថ្មី
         ])->findOrFail($id);
 
         return response()->json([
@@ -150,11 +152,10 @@ class OrderController extends Controller
             }
 
             $order->status = $newStatus;
-            $order->status_updated_by = $request->user()->id; // 🌟 កត់ត្រាអ្នកប្តូរ Status
+            $order->status_updated_by = $request->user()->id;
 
             if ($newStatus === 'COMPLETED') {
                 $order->payment_status = 'PAID';
-                // បើប្តូរទៅជា PAID ដោយស្វ័យប្រវត្តិ គួរតែកត់ត្រាអ្នកប្តូរ Payment ដែរ
                 $order->payment_processed_by = $request->user()->id;
 
                 if ($order->payment) {
@@ -206,8 +207,7 @@ class OrderController extends Controller
                 $order->user->notify(new OrderStatusUpdatedNotification($order, 'status'));
             }
 
-            // 🌟 Reload Relationship មុនបោះទៅ Frontend ដើម្បីឱ្យ UI ស្គាល់ឈ្មោះអ្នក Update ភ្លាមៗ
-            $order->load(['statusUpdater', 'paymentProcessor']);
+            $order->load(['statusUpdater', 'paymentProcessor', 'shippingZone']); // 🌟 ថែម shippingZone ពេល Reload
 
             return response()->json([
                 'success' => true,
@@ -235,9 +235,8 @@ class OrderController extends Controller
         DB::beginTransaction();
         try {
             $order->payment_status = $newStatus;
-            $order->payment_processed_by = $request->user()->id; // 🌟 កត់ត្រាអ្នកប្តូរ Payment
+            $order->payment_processed_by = $request->user()->id;
 
-            // Update ក្នុង Table Payment ផងដែរ ប្រសិនបើមាន
             if ($order->payment) {
                 $order->payment->update([
                     'status'  => $newStatus === 'PAID' ? 'COMPLETED' : 'PENDING',
@@ -252,13 +251,12 @@ class OrderController extends Controller
                 $order->user->notify(new OrderStatusUpdatedNotification($order, 'payment'));
             }
 
-            // 🌟 Reload Relationship មុនបោះទៅ Frontend ដើម្បីឱ្យ UI ស្គាល់ឈ្មោះអ្នក Update ភ្លាមៗ
-            $order->load(['statusUpdater', 'paymentProcessor']);
+            $order->load(['statusUpdater', 'paymentProcessor', 'shippingZone']); // 🌟 ថែម shippingZone ពេល Reload
 
             return response()->json([
                 'success' => true,
                 'message' => "Payment status updated to {$newStatus}.",
-                'data'    => new AdminOrderResource($order) // 🌟 ឥឡូវនេះវាបោះ Data ទៅឱ្យ Frontend វិញហើយ
+                'data'    => new AdminOrderResource($order)
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
