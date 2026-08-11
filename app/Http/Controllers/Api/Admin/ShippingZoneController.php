@@ -8,136 +8,82 @@ use Illuminate\Http\Request;
 
 class ShippingZoneController extends Controller
 {
-    /**
-     * ១. ទាញយកបញ្ជីតំបន់ដឹកជញ្ជូនទាំងអស់
-     */
+    // ១. ទាញយកបញ្ជីតំបន់ដឹកជញ្ជូនទាំងអស់
     public function index(Request $request)
     {
-        $query = ShippingZone::query();
+        // ចំនួន Zone ដឹកជញ្ជូនជាទូទៅមិនមានច្រើនទេ (ឧ. ២៥ ខេត្តក្រុង) ដូច្នេះយើងអាចប្រើ get() តែម្តង
+        $zones = ShippingZone::latest()->get();
 
-        // មុខងារស្វែងរកតាមឈ្មោះ
-        if ($request->has('search') && $request->search != '') {
-            $query->where('name', 'LIKE', '%' . $request->search . '%');
-        }
-
-        // មុខងារ Filter តាម Status (Active / Inactive)
-        if ($request->has('is_active') && $request->is_active != '') {
-            $query->where('is_active', $request->boolean('is_active'));
-        }
-
-        $zones = $query->orderBy('created_at', 'desc')->get();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Shipping zones retrieved successfully.',
-            'data'    => $zones
-        ]);
+        return $this->sendResponse($zones, 'Shipping zones fetched successfully.');
     }
 
-    /**
-     * ២. បង្កើតតំបន់ដឹកជញ្ជូនថ្មី
-     */
+    // ២. បង្កើតតំបន់ដឹកជញ្ជូនថ្មី
     public function store(Request $request)
     {
-        $request->validate([
-            'name'                    => 'required|string|max:255|unique:shipping_zones,name',
-            'base_cost'               => 'required|numeric|min:0',
+        $validated = $request->validate([
+            'name' => 'required|string|max:255|unique:shipping_zones,name',
+            'base_cost' => 'required|numeric|min:0',
+            // អនុញ្ញាតឱ្យ Null ក្នុងករណីដែល Zone នោះអត់មានប្រូម៉ូសិនហ្វ្រីថ្លៃដឹក
             'free_shipping_threshold' => 'nullable|numeric|min:0',
-            'is_active'               => 'boolean'
+            'is_active' => 'boolean',
         ]);
 
-        $zone = ShippingZone::create([
-            'name'                    => $request->name,
-            'base_cost'               => $request->base_cost,
-            'free_shipping_threshold' => $request->free_shipping_threshold,
-            'is_active'               => $request->is_active ?? true,
-        ]);
+        $validated['is_active'] = $request->boolean('is_active', true);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Shipping zone created successfully.',
-            'data'    => $zone
-        ], 201);
+        $zone = ShippingZone::create($validated);
+
+        return $this->sendResponse($zone, 'Shipping zone created successfully.', 201);
     }
 
-    /**
-     * ៣. មើលព័ត៌មានតំបន់មួយជាក់លាក់
-     */
-    public function show($id)
+    // ៣. មើលព័ត៌មានលម្អិតរបស់ Zone នីមួយៗ
+    public function show(string $id)
     {
         $zone = ShippingZone::findOrFail($id);
 
-        return response()->json([
-            'success' => true,
-            'data'    => $zone
-        ]);
+        return $this->sendResponse($zone, 'Shipping zone details fetched.');
     }
 
-    /**
-     * ៤. កែប្រែព័ត៌មានតំបន់ដឹកជញ្ជូន
-     */
-    public function update(Request $request, $id)
+    // ៤. កែប្រែព័ត៌មាន (Update)
+    public function update(Request $request, string $id)
     {
         $zone = ShippingZone::findOrFail($id);
 
-        $request->validate([
-            'name'                    => 'required|string|max:255|unique:shipping_zones,name,' . $zone->id,
-            'base_cost'               => 'required|numeric|min:0',
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string|max:255|unique:shipping_zones,name,' . $id,
+            'base_cost' => 'sometimes|required|numeric|min:0',
             'free_shipping_threshold' => 'nullable|numeric|min:0',
-            'is_active'               => 'boolean'
+            'is_active' => 'boolean',
         ]);
 
-        $zone->update([
-            'name'                    => $request->name,
-            'base_cost'               => $request->base_cost,
-            'free_shipping_threshold' => $request->free_shipping_threshold,
-            'is_active'               => $request->has('is_active') ? $request->is_active : $zone->is_active,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Shipping zone updated successfully.',
-            'data'    => $zone
-        ]);
-    }
-
-    /**
-     * ៥. លុបតំបន់ដឹកជញ្ជូន
-     */
-    public function destroy($id)
-    {
-        $zone = ShippingZone::findOrFail($id);
-
-        // គួរមានការការពារ៖ មិនឱ្យលុបបើមានអតិថិជនធ្លាប់ប្រើ Zone នេះទិញទំនិញរួចហើយ
-        $hasOrders = \App\Models\Order::where('shipping_zone_id', $zone->id)->exists();
-        if ($hasOrders) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cannot delete this zone because it is currently used in existing orders. Consider disabling it instead.'
-            ], 400);
+        if ($request->has('is_active')) {
+            $validated['is_active'] = $request->boolean('is_active');
         }
+
+        $zone->update($validated);
+
+        return $this->sendResponse($zone, 'Shipping zone updated successfully.');
+    }
+
+    // ៥. បិទ ឬ បើក ដំណើរការ Zone នេះរហ័ស
+    public function updateStatus(Request $request, string $id)
+    {
+        $request->validate(['is_active' => 'required|boolean']);
+
+        $zone = ShippingZone::findOrFail($id);
+        $zone->update(['is_active' => $request->boolean('is_active')]);
+
+        return $this->sendResponse($zone, 'Shipping zone status updated successfully.');
+    }
+
+    // ៦. លុប
+    public function destroy(string $id)
+    {
+        $zone = ShippingZone::findOrFail($id);
+
+        // ស្រេចចិត្ត៖ អ្នកអាចសរសេរកូដការពារមិនឱ្យលុប Zone ដែលកំពុងជាប់ Order នៅទីនេះបាន
 
         $zone->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Shipping zone deleted successfully.'
-        ]);
-    }
-
-    /**
-     * ៦. បិទ/បើក ដំណើរការ (Toggle Active Status)
-     */
-    public function toggleStatus($id)
-    {
-        $zone = ShippingZone::findOrFail($id);
-        $zone->is_active = !$zone->is_active;
-        $zone->save();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Shipping zone status updated successfully.',
-            'data'    => $zone
-        ]);
+        return $this->sendResponse([], 'Shipping zone deleted successfully.');
     }
 }

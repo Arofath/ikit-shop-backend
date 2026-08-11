@@ -256,11 +256,16 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
             Route::post('/discount-sort', [SettingController::class, 'updateDiscountSort']);
         });
 
+        // 🚚 Shipping Zones Management
+        Route::get('/shipping-zones', [ShippingZoneController::class, 'index']);
+        Route::post('/shipping-zones', [ShippingZoneController::class, 'store']);
+        Route::get('/shipping-zones/{id}', [ShippingZoneController::class, 'show']);
+        Route::put('/shipping-zones/{id}', [ShippingZoneController::class, 'update']);
+        Route::patch('/shipping-zones/{id}/status', [ShippingZoneController::class, 'updateStatus']);
+        Route::delete('/shipping-zones/{id}', [ShippingZoneController::class, 'destroy']);
+
         // 🌟 Admin អាចលុប Order បាន ចំណែក Sale ត្រឹមតែអាច Manage
         Route::delete('orders/{id}', [OrderController::class, 'destroy']);
         Route::post('/system/clear-cache', [SystemController::class, 'clearCache']);
-
-        Route::apiResource('shipping-zones', ShippingZoneController::class);
-        Route::patch('shipping-zones/{id}/toggle-status', [ShippingZoneController::class, 'toggleStatus']);
     });
 });

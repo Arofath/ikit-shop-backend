@@ -8,6 +8,7 @@ use App\Models\Cart;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductStockMovement;
+use App\Models\ShippingZone;
 use App\Models\User;
 use App\Notifications\NewOrderNotification;
 use App\Notifications\TelegramOrderNotification;
@@ -24,19 +25,24 @@ class OrderController extends Controller
      */
     public function store(Request $request)
     {
+        // 🌟 ១. ផ្លាស់ប្តូរ Validation ពី 'city' ទៅជា 'shipping_zone_id'
         $request->validate([
             'shipping_name'    => 'required|string|max:255',
             'shipping_phone'   => 'required|string|max:20',
-            'city'             => 'required|string',
+            'shipping_zone_id' => 'required|exists:shipping_zones,id',
             'shipping_address' => 'required|string',
             'payment_method'   => 'required|in:CASH_ON_DELIVERY,BANK_TRANSFER',
         ]);
 
-        if ($request->payment_method === 'CASH_ON_DELIVERY' && strtolower(trim($request->city)) !== 'phnom penh') {
+        // 🌟 ២. ស្វែងរក Zone ដើម្បីឆែកមើលលក្ខខណ្ឌ COD
+        $shippingZone = ShippingZone::find($request->shipping_zone_id);
+
+        // ការពារការកម្ម៉ង់ COD បើទិសដៅមិនមែនភ្នំពេញ (ប្រើឈ្មោះ Zone សម្រាប់ប្រៀបធៀប)
+        if ($request->payment_method === 'CASH_ON_DELIVERY' && strtolower(trim($shippingZone->name)) !== 'phnom penh') {
             return response()->json([
                 'success' => false,
                 'message' => 'Cash on Delivery (COD) is only available in Phnom Penh.'
-            ], 400); // 400 Bad Request
+            ], 400);
         }
 
         $user = $request->user();
@@ -51,23 +57,27 @@ class OrderController extends Controller
         DB::beginTransaction();
 
         try {
-            // ហៅមុខងាររងមកធ្វើការបន្តបន្ទាប់គ្នា (Clean & Readable)
-
-            // ក. រៀបចំទំនិញ និងកាត់ស្តុក
+            // ក. រៀបចំទំនិញ ទាញតម្លៃ Surcharge និងកាត់ស្តុក
             $processedData = $this->processCartItems($cart->items, $orderNumber);
 
-            // ខ. គណនាថ្លៃដឹក និងតម្លៃសរុប
-            $shippingFee = $this->calculateShippingFee($request->city);
-            $grandTotal  = ($processedData['subtotal'] - $processedData['discount_total']) + $shippingFee;
+            // 🌟 ខ. គណនាថ្លៃដឹកជញ្ជូនតាមរូបមន្ត ៣ ជំហាន
+            $shippingData = $this->calculateShippingFee(
+                $shippingZone,
+                $processedData['final_subtotal'], // យកតម្លៃ Subtotal ក្រោយចុះថ្លៃ
+                $processedData['bulky_surcharge_total']
+            );
+
+            // គណនាតម្លៃសរុបចុងក្រោយ (Grand Total)
+            $grandTotal = $processedData['final_subtotal'] + $shippingData['total_shipping_fee'];
 
             // គ. បង្កើតវិក្កយបត្រមេ
             $order = $this->createOrderRecord(
                 $user,
                 $request,
                 $orderNumber,
-                $processedData['subtotal'],
-                $processedData['discount_total'],
-                $shippingFee,
+                $processedData['subtotal'],       // តម្លៃដើម
+                $processedData['discount_total'], // ទំហំលុយចុះថ្លៃសរុប
+                $shippingData,                    // ទិន្នន័យដឹកជញ្ជូនទាំង ៣ Column
                 $grandTotal
             );
 
@@ -86,7 +96,7 @@ class OrderController extends Controller
 
             DB::commit();
 
-            $order->load(['items', 'payment']);
+            $order->load(['items', 'payment', 'shippingZone']);
 
             $admins = User::whereIn('role', ['admin', 'super_admin'])->get();
             if ($admins->isNotEmpty()) {
@@ -111,18 +121,39 @@ class OrderController extends Controller
         }
     }
 
-    // Helper Functions
-    private function calculateShippingFee($city)
+    // =====================================================================
+    // 🌟 មុខងារថ្មីសម្រាប់គណនាថ្លៃដឹកជញ្ជូន (Core Logic)
+    // =====================================================================
+    private function calculateShippingFee($shippingZone, $finalSubtotal, $bulkySurchargeTotal)
     {
-        $cityName = strtolower(trim($city));
-        return ($cityName === 'phnom penh') ? 2.00 : 2.50;
+        $baseShippingCost = (float) $shippingZone->base_cost;
+
+        // ជំហានទី ១៖ ផ្ទៀងផ្ទាត់លក្ខខណ្ឌ Free Shipping
+        // បើមានកំណត់ threshold ហើយភ្ញៀវទិញលើស ឬស្មើ នោះ Base Cost នឹងក្លាយជា 0 
+        if ($shippingZone->free_shipping_threshold !== null) {
+            if ($finalSubtotal >= (float) $shippingZone->free_shipping_threshold) {
+                $baseShippingCost = 0.00;
+            }
+        }
+
+        // ជំហានទី ២៖ Bulky Surcharge ត្រូវបានគណនារួចហើយក្នុង processCartItems()
+
+        // ជំហានទី ៣៖ សរុបថ្លៃដឹកជញ្ជូនចុងក្រោយ
+        $totalShippingFee = $baseShippingCost + $bulkySurchargeTotal;
+
+        return [
+            'base_shipping_cost'    => $baseShippingCost,
+            'bulky_surcharge_total' => $bulkySurchargeTotal,
+            'total_shipping_fee'    => $totalShippingFee
+        ];
     }
 
     // ឆែកស្តុក កាត់ស្តុក និងរៀបចំទិន្នន័យទំនិញ
     private function processCartItems($cartItems, $orderNumber)
     {
-        $originalSubtotal = 0; // 🌟 តម្លៃដើមសរុប (មិនទាន់កាត់បញ្ចុះតម្លៃ)
-        $totalDiscountAmount = 0; // 🌟 ទឹកប្រាក់បញ្ចុះតម្លៃសរុប
+        $originalSubtotal = 0;
+        $totalDiscountAmount = 0;
+        $bulkySurchargeTotal = 0; // 🌟 បន្ថែមអថេរសម្រាប់បូកសរុប Surcharge
         $orderItemsData = [];
 
         foreach ($cartItems as $cartItem) {
@@ -134,15 +165,19 @@ class OrderController extends Controller
 
             // គណនាតម្លៃបញ្ចុះតម្លៃក្នុងមួយឯកតា
             $discountPerUnit = $product->price * (($product->discount_percent ?? 0) / 100);
-            $unitPrice = $product->price - $discountPerUnit; // តម្លៃលក់ចេញពិតប្រាកដ ($17.10)
+            $unitPrice = $product->price - $discountPerUnit; // តម្លៃលក់ចេញពិតប្រាកដ
 
             // គណនាសរុបតាម Item
-            $itemOriginalSubtotal = $product->price * $cartItem->quantity; // ($19.00)
-            $itemDiscountTotal = $discountPerUnit * $cartItem->quantity;   // ($1.90)
-            $itemFinalSubtotal = $unitPrice * $cartItem->quantity;         // ($17.10)
+            $itemOriginalSubtotal = $product->price * $cartItem->quantity;
+            $itemDiscountTotal = $discountPerUnit * $cartItem->quantity;
+            $itemFinalSubtotal = $unitPrice * $cartItem->quantity;
+
+            // 🌟 គណនា Surcharge សម្រាប់ទំនិញនេះ
+            $itemSurcharge = ($product->shipping_surcharge ?? 0) * $cartItem->quantity;
 
             $originalSubtotal += $itemOriginalSubtotal;
             $totalDiscountAmount += $itemDiscountTotal;
+            $bulkySurchargeTotal += $itemSurcharge; // បូកបញ្ចូលទៅសរុប
 
             $orderItemsData[] = [
                 'product_id'   => $product->id,
@@ -165,44 +200,48 @@ class OrderController extends Controller
         }
 
         return [
-            'subtotal'         => $originalSubtotal,    
-            'discount_total'   => $totalDiscountAmount, 
-            'items_data'       => $orderItemsData
+            'subtotal'              => $originalSubtotal,
+            'discount_total'        => $totalDiscountAmount,
+            'final_subtotal'        => $originalSubtotal - $totalDiscountAmount, // 🌟 តម្លៃក្រោយកាត់ខាត
+            'bulky_surcharge_total' => $bulkySurchargeTotal, // 🌟 បោះ Surcharge សរុបទៅក្រៅ
+            'items_data'            => $orderItemsData
         ];
     }
 
     // បង្កើតវិក្កយបត្រ (Order Model)
-    private function createOrderRecord($user, $request, $orderNumber, $subtotal, $discountTotal, $shippingFee, $grandTotal)
+    private function createOrderRecord($user, $request, $orderNumber, $subtotal, $discountTotal, $shippingData, $grandTotal)
     {
         return Order::create([
-            'order_number'     => $orderNumber,
-            'user_id'          => $user->id,
-            'shipping_name'    => $request->shipping_name,
-            'shipping_phone'   => $request->shipping_phone,
-            'shipping_address' => $request->shipping_address,
-            'subtotal'         => $subtotal,
-            'discount_total'   => $discountTotal, // 🌟 កត់ត្រាទំហំលុយចុះតម្លៃសរុបនៅទីនេះ
-            'shipping_fee'     => $shippingFee,
-            'grand_total'      => $grandTotal,
-            'status'           => 'PENDING',
-            'payment_status'   => 'UNPAID',
-            'payment_method'   => $request->payment_method,
+            'order_number'          => $orderNumber,
+            'user_id'               => $user->id,
+            'shipping_name'         => $request->shipping_name,
+            'shipping_phone'        => $request->shipping_phone,
+            'shipping_address'      => $request->shipping_address,
+            'shipping_zone_id'      => $request->shipping_zone_id, // 🌟 បញ្ចូល Zone ID
+            'subtotal'              => $subtotal,
+            'discount_total'        => $discountTotal,
+            'base_shipping_cost'    => $shippingData['base_shipping_cost'],    // 🌟 បញ្ចូល Base
+            'bulky_surcharge_total' => $shippingData['bulky_surcharge_total'], // 🌟 បញ្ចូល Surcharge
+            'shipping_fee'          => $shippingData['total_shipping_fee'],    // 🌟 បញ្ចូល Total Fee
+            'grand_total'           => $grandTotal,
+            'status'                => 'PENDING',
+            'payment_status'        => 'UNPAID',
+            'payment_method'        => $request->payment_method,
         ]);
     }
 
+    // ... (កូដ index, show, និង uploadReceipt រក្សាទុកនៅដដែល) ...
+
     public function index(Request $request)
     {
-        // 🌟 ១. ចាប់យកពាក្យដែល Frontend បោះមក (ឧទាហរណ៍: ?status=PENDING)
         $status = $request->query('status');
 
         $orders = Order::where('user_id', $request->user()->id)
-            ->with(['items.product.thumbnail', 'payment'])
+            ->with(['items.product.thumbnail', 'payment', 'shippingZone']) // 🌟 Load ShippingZone
 
-            // 🌟 ២. មុខងារ Filter (ដើរលុះត្រាតែមានបោះ status មក និងមិនមែនពាក្យ 'ALL')
             ->when($status && strtoupper($status) !== 'ALL', function ($query) use ($status) {
                 return $query->where('status', strtoupper($status));
             })
-
             ->latest()
             ->paginate(10);
 
@@ -213,18 +252,13 @@ class OrderController extends Controller
         ], 200);
     }
 
-    /**
-     * មុខងារមើលព័ត៌មានលម្អិតនៃវិក្កយបត្រណាមួយ (Order Detail)
-     */
     public function show(Request $request, string $id)
     {
-        // 🌟 សុវត្ថិភាព៖ ស្វែងរក Order តាម ID និងត្រូវតែជារបស់ User នេះផ្ទាល់
-        $order = Order::with(['items.product.thumbnail', 'payment'])
+        $order = Order::with(['items.product.thumbnail', 'payment', 'shippingZone']) // 🌟 Load ShippingZone
             ->where('id', $id)
             ->where('user_id', $request->user()->id)
             ->first();
 
-        // បើរកមិនឃើញ ឬមិនមែនជារបស់គាត់
         if (!$order) {
             return response()->json([
                 'success' => false,
@@ -239,17 +273,12 @@ class OrderController extends Controller
         ], 200);
     }
 
-    /**
-     * មុខងារ Upload រូបភាពវិក្កយបត្របង់ប្រាក់ តាមរយៈ Cloudinary
-     */
     public function uploadReceipt(Request $request, string $id, CloudinaryStorageService $cloudinaryService)
     {
-        // ១. ត្រួតពិនិត្យថា File ដែលបញ្ជូនមកជារូបភាព និងទំហំមិនលើស 5MB
         $request->validate([
             'receipt' => 'required|image|mimes:jpeg,png,jpg|max:5120',
         ]);
 
-        // ២. ស្វែងរក Order នោះ និងត្រូវប្រាកដថាវាជារបស់ User នេះផ្ទាល់
         $order = Order::where('id', $id)
             ->where('user_id', $request->user()->id)
             ->first();
@@ -261,7 +290,6 @@ class OrderController extends Controller
             ], 404);
         }
 
-        // ៣. អនុញ្ញាតឱ្យ Upload តែ Order ណាដែលប្រើ BANK_TRANSFER ទេ
         if ($order->payment_method !== 'BANK_TRANSFER') {
             return response()->json([
                 'success' => false,
@@ -269,24 +297,21 @@ class OrderController extends Controller
             ], 400);
         }
 
-        // ៤. ដំណើរការរក្សាទុករូបភាពទៅកាន់ Cloudinary
         if ($request->hasFile('receipt')) {
             try {
-                // 🌟 ប្រើ Service Cloudinary ដើម្បី Upload និងលុបរូបចាស់ដោយស្វ័យប្រវត្តិ
                 $secureUrl = $cloudinaryService->uploadImage(
                     $request->file('receipt'),
-                    'receipts',                 // ឈ្មោះ Folder នៅក្នុង Cloudinary
-                    $order->payment_receipt     // បោះ URL រូបចាស់ទៅឱ្យវាលុប (បើមាន)
+                    'receipts',
+                    $order->payment_receipt
                 );
 
-                // រក្សាទុក URL ពេញលេញដែល Cloudinary ផ្តល់ឱ្យ ចូលទៅក្នុង Database
                 $order->payment_receipt = $secureUrl;
                 $order->save();
 
                 return response()->json([
                     'success' => true,
                     'message' => 'Payment receipt uploaded successfully.',
-                    'receipt_url' => $secureUrl // ត្រឡប់ URL ពេញទៅអោយ Frontend បង្ហាញ
+                    'receipt_url' => $secureUrl
                 ], 200);
             } catch (\Exception $e) {
                 return response()->json([
