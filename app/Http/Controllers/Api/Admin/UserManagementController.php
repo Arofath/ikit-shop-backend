@@ -66,6 +66,36 @@ class UserManagementController extends Controller
         return $this->sendResponse($paginatedData, 'List of users fetched successfully.');
     }
 
+    public function getKpis(Request $request)
+    {
+        // ១. រាប់ចំនួន User សរុប
+        $totalUsers = User::count();
+
+        // ២. ទាញយក Roles ទាំងអស់ ព្រមទាំងរាប់ចំនួន User ក្នុង Role នីមួយៗ (Spatie Built-in)
+        $roles = \Spatie\Permission\Models\Role::withCount('users')->get();
+
+        $roleCounts = $roles->map(function ($role) {
+            return [
+                'name' => $role->name,
+                'count' => $role->users_count
+            ];
+        });
+
+        // ៣. រាប់ចំនួន User ដែល Active និង Inactive
+        $activeUsers = User::where('is_active', true)->count();
+        $inactiveUsers = User::where('is_active', false)->count();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'total_users' => $totalUsers,
+                'active_users' => $activeUsers,
+                'inactive_users' => $inactiveUsers,
+                'by_role' => $roleCounts // បោះ Array នេះទៅឱ្យ Vue Loop
+            ]
+        ]);
+    }
+
     public function store(Request $request)
     {
         $currentUser = $request->user();

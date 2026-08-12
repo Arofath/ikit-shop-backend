@@ -178,6 +178,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::prefix('users')->group(function () {
             Route::post('/', [UserManagementController::class, 'store']);
             Route::get('/', [UserManagementController::class, 'index']);
+            Route::get('/kpis', [UserManagementController::class, 'getKpis']);
             Route::get('/{id}', [UserManagementController::class, 'show']);
             Route::patch('/{id}/status', [UserManagementController::class, 'updateStatus']);
             Route::patch('/{id}/role', [UserManagementController::class, 'updateRole']);
