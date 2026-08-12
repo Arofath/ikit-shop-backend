@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
-use App\Http\Resources\UserResource;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 
 class UserManagementController extends Controller
 {
@@ -72,7 +73,7 @@ class UserManagementController extends Controller
         $totalUsers = User::count();
 
         // ២. ទាញយក Roles ទាំងអស់ ព្រមទាំងរាប់ចំនួន User ក្នុង Role នីមួយៗ (Spatie Built-in)
-        $roles = \Spatie\Permission\Models\Role::withCount('users')->get();
+        $roles = Role::withCount('users')->get();
 
         $roleCounts = $roles->map(function ($role) {
             return [
