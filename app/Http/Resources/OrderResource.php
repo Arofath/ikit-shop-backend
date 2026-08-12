@@ -17,6 +17,7 @@ class OrderResource extends JsonResource
             'shipping_name'    => $this->shipping_name,
             'shipping_phone'   => $this->shipping_phone,
             'shipping_address' => $this->shipping_address,
+            'shipping_zone'    => $this->whenLoaded('shippingZone'),
 
             // ហិរញ្ញវត្ថុ
             'subtotal'         => (float) $this->subtotal,

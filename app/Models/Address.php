@@ -15,12 +15,16 @@ class Address extends Model
         'receiver_name',
         'receiver_phone',
         'address_detail',
-        'city',
+        'shipping_zone_id',
         'is_default',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+    public function shippingZone()
+    {
+        return $this->belongsTo(ShippingZone::class, 'shipping_zone_id');
     }
 }

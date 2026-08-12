@@ -45,6 +45,7 @@ class AdminOrderResource extends JsonResource
             'shipping_name'    => $this->shipping_name,
             'shipping_phone'   => $this->shipping_phone,
             'shipping_address' => $this->shipping_address,
+            'shipping_zone'    => $this->whenLoaded('shippingZone'),
 
             'subtotal'         => (float) $this->subtotal,
             'shipping_fee'     => (float) $this->shipping_fee,
