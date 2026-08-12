@@ -32,11 +32,11 @@ class AddressController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'receiver_name'   => 'required|string|max:255',
-            'receiver_phone'  => 'required|string|max:20',
-            'address_detail'  => 'required|string',
-            'city'            => 'required|string',
-            'is_default'      => 'boolean'
+            'receiver_name'    => 'required|string|max:255',
+            'receiver_phone'   => 'required|string|max:20',
+            'address_detail'   => 'required|string',
+            'shipping_zone_id' => 'required|exists:shipping_zones,id', // ✅ Add this line
+            'is_default'       => 'boolean'
         ]);
 
         $userId = $request->user()->id;
@@ -53,12 +53,12 @@ class AddressController extends Controller
             }
 
             $address = Address::create([
-                'user_id'        => $userId,
-                'receiver_name'  => $request->receiver_name,
-                'receiver_phone' => $request->receiver_phone,
-                'address_detail' => $request->address_detail,
-                'city'           => $request->city,
-                'is_default'     => $isDefault,
+                'user_id'          => $userId,
+                'receiver_name'    => $request->receiver_name,
+                'receiver_phone'   => $request->receiver_phone,
+                'address_detail'   => $request->address_detail,
+                'shipping_zone_id' => $request->shipping_zone_id, // ✅ Make sure you are saving the zone ID, not the city
+                'is_default'       => $isDefault,
             ]);
 
             DB::commit();
