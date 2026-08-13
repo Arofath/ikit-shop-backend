@@ -100,6 +100,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
     Route::prefix('orders')->group(function () {
         Route::get('/', [PublicOrderController::class, 'index']);
         Route::post('/checkout', [PublicOrderController::class, 'store']);
+        Route::put('/{id}/address', [PublicOrderController::class, 'updateOrderAddress']);
         Route::get('/{id}', [PublicOrderController::class, 'show']);
         Route::post('/{id}/upload-receipt', [PublicOrderController::class, 'uploadReceipt']);
     });
@@ -107,7 +108,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::get('/', [AddressController::class, 'index']);
         Route::post('/', [AddressController::class, 'store']);
         Route::put('/{id}', [AddressController::class, 'update']);
-        Route::put('/orders/{id}/address', [OrderController::class, 'updateOrderAddress']);
+        
         Route::patch('/{id}/set-default', [AddressController::class, 'setAsDefault']);
         Route::delete('/{id}', [AddressController::class, 'destroy']);
     });
