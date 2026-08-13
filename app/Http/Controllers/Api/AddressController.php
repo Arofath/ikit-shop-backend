@@ -73,6 +73,48 @@ class AddressController extends Controller
         }
     }
 
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'receiver_name'    => 'required|string|max:255',
+            'receiver_phone'   => 'required|string|max:20',
+            'address_detail'   => 'required|string',
+            'shipping_zone_id' => 'required|exists:shipping_zones,id',
+            'is_default'       => 'boolean'
+        ]);
+
+        $userId = $request->user()->id;
+        $address = Address::where('id', $id)->where('user_id', $userId)->firstOrFail();
+
+        DB::beginTransaction();
+        try {
+            $isDefault = $request->is_default ?? $address->is_default;
+
+            // បើគាត់ចង់កំណត់វាជា Default ត្រូវដក Default ពីអាសយដ្ឋានផ្សេងសិន
+            if ($isDefault && !$address->is_default) {
+                Address::where('user_id', $userId)->update(['is_default' => false]);
+            }
+
+            $address->update([
+                'receiver_name'    => $request->receiver_name,
+                'receiver_phone'   => $request->receiver_phone,
+                'address_detail'   => $request->address_detail,
+                'shipping_zone_id' => $request->shipping_zone_id,
+                'is_default'       => $isDefault,
+            ]);
+
+            DB::commit();
+            return response()->json([
+                'success' => true,
+                'message' => 'Address updated successfully.',
+                'data'    => new AddressResource($address)
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
+        }
+    }
+
     /**
      * កំណត់អាសយដ្ឋានណាមួយជា Default (ចម្បង)
      */

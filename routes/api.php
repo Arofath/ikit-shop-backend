@@ -106,6 +106,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
     Route::prefix('addresses')->group(function () {
         Route::get('/', [AddressController::class, 'index']);
         Route::post('/', [AddressController::class, 'store']);
+        Route::put('/addresses/{id}', [AddressController::class, 'update']);
         Route::patch('/{id}/set-default', [AddressController::class, 'setAsDefault']);
         Route::delete('/{id}', [AddressController::class, 'destroy']);
     });
