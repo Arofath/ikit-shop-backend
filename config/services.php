@@ -49,6 +49,9 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
     'telegram-bot-api' => [
-        'token' => env('TELEGRAM_BOT_TOKEN')
+        'token' => env('TELEGRAM_BOT_TOKEN'),
+        'client_options' => [
+            'verify' => base_path('cacert.pem'),
+        ],
     ],
 ];

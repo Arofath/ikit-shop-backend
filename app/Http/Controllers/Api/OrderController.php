@@ -103,8 +103,12 @@ class OrderController extends Controller
                 Notification::send($admins, new NewOrderNotification($order));
             }
 
-            Notification::route('telegram', env('TELEGRAM_CHAT_ID'))
-                ->notify(new TelegramOrderNotification($order));
+            try {
+                Notification::route('telegram', env('TELEGRAM_CHAT_ID'))
+                    ->notify(new TelegramOrderNotification($order));
+            } catch (\Exception $e) {
+                \Log::error('Telegram notification failed: ' . $e->getMessage());
+            }
 
             return response()->json([
                 'success' => true,
@@ -234,7 +238,8 @@ class OrderController extends Controller
             $product = Product::lockForUpdate()->find($cartItem->product_id);
 
             if (!$product || $product->current_stock < $cartItem->quantity) {
-                throw new \Exception("Sorry, Product '{$cartItem->product->name}' is out of stock or insufficient quantity.");
+                $productName = $product ? $product->name : ($cartItem->product->name ?? 'Unknown Product');
+                throw new \Exception("Sorry, Product '{$productName}' is out of stock or insufficient quantity.");
             }
 
             // គណនាតម្លៃបញ្ចុះតម្លៃក្នុងមួយឯកតា
