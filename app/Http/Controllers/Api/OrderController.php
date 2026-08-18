@@ -352,6 +352,62 @@ class OrderController extends Controller
         }
     }
 
+
+    public function paymentForKHQR(string $id)
+    {
+        $order = Order::with('payment')
+            ->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Order not found.',
+            ], 404);
+        }
+
+        if (!$order->payment) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment record not found.',
+            ], 404);
+        }
+
+        // Only KHQR orders can generate KHQR
+        if ($order->payment_method !== 'KHQR') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This order does not use KHQR payment.',
+            ], 400);
+        }
+
+        // Do not generate another QR for an already-paid order
+        if (in_array($order->payment_status, ['PAID', 'COMPLETED'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This order has already been paid.',
+            ], 400);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'order_id' => (string) $order->id,
+                'order_number' => $order->order_number,
+
+                'payment_id' => (string) $order->payment->id,
+
+                'amount' => (float) $order->payment->amount,
+                'currency' => $order->payment->currency,
+
+                'payment_method' => $order->payment->payment_method,
+                'payment_status' => $order->payment->status,
+
+                'order_payment_status' => $order->payment_status,
+            ],
+        ], 200);
+    }
+
+
     public function updateOrderAddress(Request $request, $id)
     {
         // ១. ស្វែងរកវិក្កយបត្ររបស់ User នោះ

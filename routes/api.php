@@ -104,6 +104,8 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::get('/{id}', [PublicOrderController::class, 'show']);
         Route::post('/{id}/upload-receipt', [PublicOrderController::class, 'uploadReceipt']);
     });
+    Route::get( '/internal/orders/{id}/khqr-payment', [OrderController::class, 'paymentForKHQR'] );
+    
     Route::prefix('addresses')->group(function () {
         Route::get('/', [AddressController::class, 'index']);
         Route::post('/', [AddressController::class, 'store']);
