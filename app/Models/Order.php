@@ -16,38 +16,54 @@ class Order extends Model
         'user_id',
         'created_by',
         'address_id',
+
         'shipping_name',
         'shipping_phone',
         'shipping_address',
-        'shipping_zone_id',      
-        'base_shipping_cost',    
+        'shipping_zone_id',
+
+        'base_shipping_cost',
         'bulky_surcharge_total',
         'subtotal',
         'discount_total',
         'shipping_fee',
         'tax_amount',
         'grand_total',
+
+        'currency',
+
         'status',
         'payment_status',
         'payment_method',
+        'payment_expires_at',
+
         'payment_receipt',
-        "payment_note",
+        'payment_note',
         'note',
     ];
 
-    // Order នេះជារបស់ User មួយណា?
+    protected $casts = [
+        'base_shipping_cost' => 'decimal:2',
+        'bulky_surcharge_total' => 'decimal:2',
+        'subtotal' => 'decimal:2',
+        'discount_total' => 'decimal:2',
+        'shipping_fee' => 'decimal:2',
+        'tax_amount' => 'decimal:2',
+        'grand_total' => 'decimal:2',
+
+        'payment_expires_at' => 'datetime',
+    ];
+
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // Order នេះមានទំនិញអ្វីខ្លះ?
     public function items()
     {
         return $this->hasMany(OrderItem::class);
     }
 
-    // Order នេះមានការបង់ប្រាក់អ្វីខ្លះ? (ជាទូទៅអាចមានតែ ១)
     public function payment()
     {
         return $this->hasOne(Payment::class);
@@ -70,6 +86,9 @@ class Order extends Model
 
     public function shippingZone()
     {
-        return $this->belongsTo(ShippingZone::class, 'shipping_zone_id');
+        return $this->belongsTo(
+            ShippingZone::class,
+            'shipping_zone_id'
+        );
     }
 }

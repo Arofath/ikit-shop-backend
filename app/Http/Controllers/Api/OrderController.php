@@ -23,7 +23,7 @@ class OrderController extends Controller
     /**
      * មុខងារបញ្ជាទិញ (Checkout)
      */
-    public function store(Request $request)
+    /*public function store(Request $request)
     {
         // 🌟 ១. ផ្លាស់ប្តូរ Validation ពី 'city' ទៅជា 'shipping_zone_id'
         $request->validate([
@@ -117,6 +117,235 @@ class OrderController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Checkout failed: ' . $e->getMessage()
+            ], 400);
+        }
+    }*/
+
+    public function store(Request $request)
+    {
+        // ======================================================
+        // 1. Validate Checkout Data
+        // ======================================================
+
+        $validated = $request->validate([
+            'shipping_name'    => 'required|string|max:255',
+            'shipping_phone'   => 'required|string|max:20',
+            'shipping_zone_id' => 'required|exists:shipping_zones,id',
+            'shipping_address' => 'required|string',
+            'payment_method'   => 'required|in:CASH_ON_DELIVERY,KHQR',
+        ]);
+
+        // ======================================================
+        // 2. Get Shipping Zone
+        // ======================================================
+
+        $shippingZone = ShippingZone::findOrFail(
+            $validated['shipping_zone_id']
+        );
+
+        // ======================================================
+        // 3. Validate COD
+        // ======================================================
+
+        if (
+            $validated['payment_method'] === 'CASH_ON_DELIVERY' &&
+            strtolower(trim($shippingZone->name)) !== 'phnom penh'
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cash on Delivery (COD) is only available in Phnom Penh.',
+            ], 400);
+        }
+
+        // ======================================================
+        // 4. Get Current User
+        // ======================================================
+
+        $user = $request->user();
+
+        // ======================================================
+        // 5. Get Cart
+        // ======================================================
+
+        $cart = Cart::with('items.product')
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$cart || $cart->items->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Your cart is empty.',
+            ], 400);
+        }
+
+        // ======================================================
+        // 6. Generate Order Number
+        // ======================================================
+
+        $orderNumber =
+            'ORD-' .
+            date('Ymd') .
+            '-' .
+            strtoupper(Str::random(5));
+
+        DB::beginTransaction();
+
+        try {
+
+            // ==================================================
+            // 7. Process Cart Items
+            // ==================================================
+
+            $processedData = $this->processCartItems(
+                $cart->items,
+                $orderNumber
+            );
+
+            // ==================================================
+            // 8. Calculate Shipping
+            // ==================================================
+
+            $shippingData = $this->calculateShippingFee(
+                $shippingZone,
+                $processedData['final_subtotal'],
+                $processedData['bulky_surcharge_total']
+            );
+
+            // ==================================================
+            // 9. Calculate Grand Total
+            // ==================================================
+
+            $grandTotal =
+                $processedData['final_subtotal'] +
+                $shippingData['total_shipping_fee'];
+
+            // ==================================================
+            // 10. Create Order
+            // ==================================================
+
+            $order = $this->createOrderRecord(
+                $user,
+                $request,
+                $orderNumber,
+                $processedData['subtotal'],
+                $processedData['discount_total'],
+                $shippingData,
+                $grandTotal
+            );
+
+            // ==================================================
+            // 11. Create Order Items
+            // ==================================================
+
+            $order->items()->createMany(
+                $processedData['items_data']
+            );
+
+            // ==================================================
+            // 12. Create Payment
+            // ==================================================
+
+            $order->payment()->create([
+                'amount' => $grandTotal,
+                'currency' => $order->currency,
+                'payment_method' => $validated['payment_method'],
+                'status' => 'PENDING',
+            ]);
+
+            // ==================================================
+            // 13. Clear Cart
+            // ==================================================
+
+            $cart->items()->delete();
+
+            // ==================================================
+            // 14. Commit
+            // ==================================================
+
+            DB::commit();
+
+            // ==================================================
+            // 15. Load Relationships
+            // ==================================================
+
+            $order->load([
+                'items',
+                'payment',
+                'shippingZone',
+            ]);
+
+            // ==================================================
+            // 16. Notify Admin
+            // ==================================================
+
+            $admins = User::whereIn(
+                'role',
+                ['admin', 'super_admin']
+            )->get();
+
+            if ($admins->isNotEmpty()) {
+                Notification::send(
+                    $admins,
+                    new NewOrderNotification($order)
+                );
+            }
+
+            // ==================================================
+            // 17. Telegram Notification
+            // ==================================================
+
+            Notification::route(
+                'telegram',
+                env('TELEGRAM_CHAT_ID')
+            )->notify(
+                new TelegramOrderNotification($order)
+            );
+
+            // ==================================================
+            // 18. Response
+            // ==================================================
+
+            return response()->json([
+                'success' => true,
+
+                'message' =>
+                'Order placed successfully.',
+
+                'order_id' =>
+                $order->id,
+
+                'order_number' =>
+                $order->order_number,
+
+                'payment' => [
+                    'id' =>
+                    $order->payment->id,
+
+                    'method' =>
+                    $order->payment->payment_method,
+
+                    'status' =>
+                    $order->payment->status,
+
+                    'amount' =>
+                    $order->payment->amount,
+
+                    'currency' =>
+                    $order->payment->currency,
+                ],
+
+            ], 201);
+        } catch (\Exception $e) {
+
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+
+                'message' =>
+                'Checkout failed: ' .
+                    $e->getMessage(),
+
             ], 400);
         }
     }

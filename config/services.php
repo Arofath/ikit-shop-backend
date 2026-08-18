@@ -51,4 +51,10 @@ return [
     'telegram-bot-api' => [
         'token' => env('TELEGRAM_BOT_TOKEN')
     ],
+    'bakong' => [
+        'node_url' => env(
+            'BAKONG_NODE_URL',
+            'http://127.0.0.1:3001'
+        ),
+    ],
 ];
