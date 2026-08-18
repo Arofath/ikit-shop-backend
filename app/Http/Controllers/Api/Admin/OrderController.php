@@ -287,6 +287,16 @@ class OrderController extends Controller
         $order = Order::with('payment')->findOrFail($id);
         $newStatus = $request->payment_status;
 
+        // ==================================================
+        // 🌟 ការពារមិនឱ្យ Admin ដូរពី PAID ទៅ UNPAID សម្រាប់ KHQR
+        // ==================================================
+        if ($newStatus === 'UNPAID' && $order->payment_status === 'PAID' && $order->payment_method === 'KHQR') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Permission denied: Cannot revert KHQR automated payments back to UNPAID.'
+            ], 400);
+        }
+
         DB::beginTransaction();
         try {
             $order->payment_status = $newStatus;
