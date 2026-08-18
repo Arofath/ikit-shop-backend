@@ -223,6 +223,7 @@ class OrderController extends Controller
             // 10. Create Order
             // ==================================================
 
+            $currency = 'USD';
             $order = $this->createOrderRecord(
                 $user,
                 $request,
@@ -230,7 +231,8 @@ class OrderController extends Controller
                 $processedData['subtotal'],
                 $processedData['discount_total'],
                 $shippingData,
-                $grandTotal
+                $grandTotal,
+                $currency
             );
 
             // ==================================================
@@ -512,21 +514,38 @@ class OrderController extends Controller
     }
 
     // បង្កើតវិក្កយបត្រ (Order Model)
-    private function createOrderRecord($user, $request, $orderNumber, $subtotal, $discountTotal, $shippingData, $grandTotal)
-    {
+    private function createOrderRecord(
+        $user,
+        $request,
+        $orderNumber,
+        $subtotal,
+        $discountTotal,
+        $shippingData,
+        $grandTotal,
+        $currency
+    ) {
         return Order::create([
             'order_number'          => $orderNumber,
             'user_id'               => $user->id,
+
             'shipping_name'         => $request->shipping_name,
             'shipping_phone'        => $request->shipping_phone,
             'shipping_address'      => $request->shipping_address,
-            'shipping_zone_id'      => $request->shipping_zone_id, // 🌟 បញ្ចូល Zone ID
+            'shipping_zone_id'      => $request->shipping_zone_id,
+
             'subtotal'              => $subtotal,
             'discount_total'        => $discountTotal,
-            'base_shipping_cost'    => $shippingData['base_shipping_cost'],    // 🌟 បញ្ចូល Base
-            'bulky_surcharge_total' => $shippingData['bulky_surcharge_total'], // 🌟 បញ្ចូល Surcharge
-            'shipping_fee'          => $shippingData['total_shipping_fee'],    // 🌟 បញ្ចូល Total Fee
+
+            'base_shipping_cost'    => $shippingData['base_shipping_cost'],
+            'bulky_surcharge_total' => $shippingData['bulky_surcharge_total'],
+            'shipping_fee'          => $shippingData['total_shipping_fee'],
+
+            'tax_amount'            => 0,
+
             'grand_total'           => $grandTotal,
+
+            'currency'              => $currency,
+
             'status'                => 'PENDING',
             'payment_status'        => 'UNPAID',
             'payment_method'        => $request->payment_method,
