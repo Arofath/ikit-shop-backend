@@ -6,40 +6,27 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 use NotificationChannels\Telegram\TelegramMessage;
 
-class TelegramOrderNotification extends Notification
+class TelegramPaymentSuccessNotification extends Notification
 {
     use Queueable;
 
     public $order;
 
-    /**
-     * ទទួលយកទិន្នន័យ Order ពី Controller
-     */
     public function __construct($order)
     {
         $this->order = $order;
     }
 
-    /**
-     * កំណត់ប្រភេទទូរគមនាគមន៍ (Channel) ជា Telegram
-     */
     public function via($notifiable)
     {
         return ['telegram'];
     }
 
-    /**
-     * រៀបចំទម្រង់សារដែលត្រូវបញ្ជូនទៅ Telegram Group
-     */
     public function toTelegram($notifiable)
     {
         $adminOrderUrl = env('ADMIN_FRONTEND_URL', 'http://localhost:5173') . '/admin/orders/' . $this->order->id;
 
-        // 🌟 ១. រៀបចំ Payment 
-        $paymentStatus = $this->order->payment_status === 'PAID' ? '✅ PAID' : '⏳ UNPAID';
-        $paymentMethod = str_replace('_', ' ', $this->order->payment_method); // ប្តូរ CASH_ON_DELIVERY ទៅ CASH ON DELIVERY
-
-        // 🌟 ២. រៀបចំបញ្ជីទំនិញ (Items Summary)
+        // 🌟 ១. រៀបចំបញ្ជីទំនិញ (Items Summary) យកចេញពីគំរូដើម
         $itemsList = "";
         if ($this->order->items && $this->order->items->count() > 0) {
             foreach ($this->order->items as $item) {
@@ -51,10 +38,10 @@ class TelegramOrderNotification extends Notification
             $itemsList = "• មិនមានព័ត៌មានទំនិញ\n";
         }
 
-        // 🌟 ៣. ចាប់ផ្តើមសាងសង់សារ Telegram
+        // 🌟 ២. សាងសង់សារ Telegram សម្រាប់ពេលលុយចូល
         $telegramMessage = TelegramMessage::create()
             ->to(env('TELEGRAM_CHAT_ID'))
-            ->content("*🛒 មានការបញ្ជាទិញថ្មីពី វេបសាយ!*\n\n")
+            ->content("*🎉 ទទួលបានការទូទាត់ប្រាក់ជោគជ័យ (KHQR)!*\n\n")
 
             // ផ្នែកព័ត៌មានទូទៅ
             ->line("*លេខកូដ (Order ID):* `#" . $this->order->order_number . "`")
@@ -69,17 +56,20 @@ class TelegramOrderNotification extends Notification
             ->line("")
 
             // ផ្នែកហិរញ្ញវត្ថុ
-            ->line("*វិធីបង់ប្រាក់:* " . $paymentMethod)
             ->line("*សេវាដឹកជញ្ជូន:* `$" . number_format($this->order->shipping_fee, 2) . "`")
             ->line("*សរុបទាំងអស់ (Grand Total):* `$" . number_format($this->order->grand_total, 2) . "`")
-            ->line("*ស្ថានភាព (Status):* " . $paymentStatus);
+            ->line("*លេខប្រតិបត្តិការ (TXN):* `" . ($this->order->payment->transaction_hash ?? 'N/A') . "`")
+            ->line("*ស្ថានភាព:* ✅ បង់ប្រាក់រួចរាល់ (PAID)")
+            ->line("\n_សូមរៀបចំទំនិញសម្រាប់អតិថិជន!_");
 
-        // 🌟 ៤. ដោះស្រាយបញ្ហា URL សម្រាប់ប៊ូតុង
-        // if (str_contains($adminOrderUrl, 'localhost')) {
-        //     $telegramMessage->line("\n🔗 *Link សម្រាប់ Admin:* \n`" . $adminOrderUrl . "`");
-        // } else {
-        //     $telegramMessage->button('👉 ចុចទីនេះដើម្បីចាត់ចែង (View Order)', $adminOrderUrl);
-        // }
+        // 🌟 ៣. (ជម្រើស) បើចង់បង្ហាញ Link ទៅកាន់ Admin អាចបើកកូដនេះបាន
+        /*
+        if (str_contains($adminOrderUrl, 'localhost')) {
+            $telegramMessage->line("\n🔗 *Link សម្រាប់ Admin:* \n`" . $adminOrderUrl . "`");
+        } else {
+            $telegramMessage->button('👉 ចុចទីនេះដើម្បីចាត់ចែង (View Order)', $adminOrderUrl);
+        }
+        */
 
         return $telegramMessage;
     }

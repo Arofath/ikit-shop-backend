@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
+use App\Notifications\TelegramPaymentSuccessNotification;
 
 class OrderController extends Controller
 {
@@ -317,7 +318,7 @@ class OrderController extends Controller
 
         // អាប់ដេត Order Status
         $order->payment_status = 'PAID';
-        $order->status = 'PROCESSING'; // ប្តូរទៅ Processing ដើម្បីឱ្យ Admin រៀបចំអីវ៉ាន់
+        $order->status = 'PROCESSING';
         $order->save();
 
         // អាប់ដេត Payment Status
@@ -325,6 +326,17 @@ class OrderController extends Controller
             $order->payment->status = 'COMPLETED';
             $order->payment->transaction_hash = $request->hash;
             $order->payment->save();
+        }
+
+        // ==================================================
+        // 🌟 បន្ថែមការបាញ់សារ Alert ទៅកាន់ Telegram នៅទីនេះ
+        // ==================================================
+        try {
+            Notification::route('telegram', env('TELEGRAM_CHAT_ID'))
+                ->notify(new TelegramPaymentSuccessNotification($order));
+        } catch (\Exception $e) {
+            // យើងដាក់ Try Catch ដើម្បីកុំឱ្យ Error Telegram ធ្វើឱ្យគាំងការ Update Webhook
+            \Log::error('Telegram Payment Success Notification Failed: ' . $e->getMessage());
         }
 
         return response()->json(['success' => true, 'message' => 'Order updated to PAID successfully']);
