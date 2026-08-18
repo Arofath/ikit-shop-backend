@@ -20,106 +20,6 @@ use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
-    /**
-     * មុខងារបញ្ជាទិញ (Checkout)
-     */
-    /*public function store(Request $request)
-    {
-        // 🌟 ១. ផ្លាស់ប្តូរ Validation ពី 'city' ទៅជា 'shipping_zone_id'
-        $request->validate([
-            'shipping_name'    => 'required|string|max:255',
-            'shipping_phone'   => 'required|string|max:20',
-            'shipping_zone_id' => 'required|exists:shipping_zones,id',
-            'shipping_address' => 'required|string',
-            'payment_method'   => 'required|in:CASH_ON_DELIVERY,BANK_TRANSFER',
-        ]);
-
-        // 🌟 ២. ស្វែងរក Zone ដើម្បីឆែកមើលលក្ខខណ្ឌ COD
-        $shippingZone = ShippingZone::find($request->shipping_zone_id);
-
-        // ការពារការកម្ម៉ង់ COD បើទិសដៅមិនមែនភ្នំពេញ (ប្រើឈ្មោះ Zone សម្រាប់ប្រៀបធៀប)
-        if ($request->payment_method === 'CASH_ON_DELIVERY' && strtolower(trim($shippingZone->name)) !== 'phnom penh') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cash on Delivery (COD) is only available in Phnom Penh.'
-            ], 400);
-        }
-
-        $user = $request->user();
-        $cart = Cart::with('items.product')->where('user_id', $user->id)->first();
-
-        if (!$cart || $cart->items->isEmpty()) {
-            return response()->json(['success' => false, 'message' => 'Your cart is empty.'], 400);
-        }
-
-        $orderNumber = 'ORD-' . date('Ymd') . '-' . strtoupper(Str::random(5));
-
-        DB::beginTransaction();
-
-        try {
-            // ក. រៀបចំទំនិញ ទាញតម្លៃ Surcharge និងកាត់ស្តុក
-            $processedData = $this->processCartItems($cart->items, $orderNumber);
-
-            // 🌟 ខ. គណនាថ្លៃដឹកជញ្ជូនតាមរូបមន្ត ៣ ជំហាន
-            $shippingData = $this->calculateShippingFee(
-                $shippingZone,
-                $processedData['final_subtotal'], // យកតម្លៃ Subtotal ក្រោយចុះថ្លៃ
-                $processedData['bulky_surcharge_total']
-            );
-
-            // គណនាតម្លៃសរុបចុងក្រោយ (Grand Total)
-            $grandTotal = $processedData['final_subtotal'] + $shippingData['total_shipping_fee'];
-
-            // គ. បង្កើតវិក្កយបត្រមេ
-            $order = $this->createOrderRecord(
-                $user,
-                $request,
-                $orderNumber,
-                $processedData['subtotal'],       // តម្លៃដើម
-                $processedData['discount_total'], // ទំហំលុយចុះថ្លៃសរុប
-                $shippingData,                    // ទិន្នន័យដឹកជញ្ជូនទាំង ៣ Column
-                $grandTotal
-            );
-
-            // ឃ. បញ្ចូលបញ្ជីទំនិញទៅក្នុងវិក្កយបត្រ
-            $order->items()->createMany($processedData['items_data']);
-
-            // ង. បង្កើតប្រតិបត្តិការបង់ប្រាក់
-            $order->payment()->create([
-                'amount'         => $grandTotal,
-                'payment_method' => $request->payment_method,
-                'status'         => 'PENDING',
-            ]);
-
-            // ច. សម្អាតកន្ត្រកទំនិញ
-            $cart->items()->delete();
-
-            DB::commit();
-
-            $order->load(['items', 'payment', 'shippingZone']);
-
-            $admins = User::whereIn('role', ['admin', 'super_admin'])->get();
-            if ($admins->isNotEmpty()) {
-                Notification::send($admins, new NewOrderNotification($order));
-            }
-
-            Notification::route('telegram', env('TELEGRAM_CHAT_ID'))
-                ->notify(new TelegramOrderNotification($order));
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Order placed successfully.',
-                'order_id' => $order->id,
-                'order_number' => $order->order_number
-            ], 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Checkout failed: ' . $e->getMessage()
-            ], 400);
-        }
-    }*/
 
     public function store(Request $request)
     {
@@ -405,6 +305,29 @@ class OrderController extends Controller
                 'order_payment_status' => $order->payment_status,
             ],
         ], 200);
+    }
+
+    public function markAsPaidWebhook(Request $request, $id)
+    {
+        $order = Order::with('payment')->find($id);
+
+        if (!$order) {
+            return response()->json(['success' => false, 'message' => 'Order not found'], 404);
+        }
+
+        // អាប់ដេត Order Status
+        $order->payment_status = 'PAID';
+        $order->status = 'PROCESSING'; // ប្តូរទៅ Processing ដើម្បីឱ្យ Admin រៀបចំអីវ៉ាន់
+        $order->save();
+
+        // អាប់ដេត Payment Status
+        if ($order->payment) {
+            $order->payment->status = 'COMPLETED';
+            $order->payment->transaction_hash = $request->hash;
+            $order->payment->save();
+        }
+
+        return response()->json(['success' => true, 'message' => 'Order updated to PAID successfully']);
     }
 
 

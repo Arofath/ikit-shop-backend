@@ -66,9 +66,7 @@ Route::get('/warranty-check', [PublicWarrantyController::class, 'check']);
 
 Route::prefix('internal')->group(function () {
     Route::get('/orders/{id}/khqr-payment', [\App\Http\Controllers\Api\OrderController::class, 'paymentForKHQR']);
-
-    // បើសិនជាអ្នកមាន Webhook URL សម្រាប់ Update ថាបង់លុយរួច ក៏អាចដាក់ទីនេះបានដែរ
-    // Route::post('/orders/{id}/mark-as-paid', [\App\Http\Controllers\Api\OrderController::class, 'markAsPaidWebhook']);
+    Route::post('/orders/{id}/mark-as-paid', [\App\Http\Controllers\Api\OrderController::class, 'markAsPaidWebhook']);
 });
 
 
