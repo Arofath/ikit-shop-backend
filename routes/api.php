@@ -64,6 +64,13 @@ Route::get('/home', [HomeController::class, 'index']);
 Route::post('/contacts', [CustomerContactController::class, 'store']);
 Route::get('/warranty-check', [PublicWarrantyController::class, 'check']);
 
+Route::prefix('internal')->group(function () {
+    Route::get('/orders/{id}/khqr-payment', [\App\Http\Controllers\Api\OrderController::class, 'paymentForKHQR']);
+
+    // បើសិនជាអ្នកមាន Webhook URL សម្រាប់ Update ថាបង់លុយរួច ក៏អាចដាក់ទីនេះបានដែរ
+    // Route::post('/orders/{id}/mark-as-paid', [\App\Http\Controllers\Api\OrderController::class, 'markAsPaidWebhook']);
+});
+
 
 // =============================================================
 // 2. PROTECTED ROUTES (All Logged-in Users)
@@ -104,8 +111,8 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::get('/{id}', [PublicOrderController::class, 'show']);
         Route::post('/{id}/upload-receipt', [PublicOrderController::class, 'uploadReceipt']);
     });
-    Route::get( '/internal/orders/{id}/khqr-payment', [OrderController::class, 'paymentForKHQR'] );
-    
+    // Route::get( '/internal/orders/{id}/khqr-payment', [PublicOrderController::class, 'paymentForKHQR'] );
+
     Route::prefix('addresses')->group(function () {
         Route::get('/', [AddressController::class, 'index']);
         Route::post('/', [AddressController::class, 'store']);
