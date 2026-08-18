@@ -11,13 +11,13 @@ use App\Models\ProductStockMovement;
 use App\Models\ShippingZone;
 use App\Models\User;
 use App\Notifications\NewOrderNotification;
+use App\Notifications\TelegramPaymentSuccessNotification;
 use App\Notifications\TelegramOrderNotification;
 use App\Services\CloudinaryStorageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
-use App\Notifications\TelegramPaymentSuccessNotification;
 
 class OrderController extends Controller
 {
