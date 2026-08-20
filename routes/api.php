@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrderController as PublicOrderController;
 use App\Http\Controllers\Api\PublicWarrantyController;
 use App\Http\Controllers\Api\UserProfileController;
+use App\Http\Controllers\Api\Admin\PermissionController;
 use Illuminate\Support\Facades\Route;
 
 // =============================================================
@@ -115,7 +116,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         Route::get('/', [AddressController::class, 'index']);
         Route::post('/', [AddressController::class, 'store']);
         Route::put('/{id}', [AddressController::class, 'update']);
-        
+
         Route::patch('/{id}/set-default', [AddressController::class, 'setAsDefault']);
         Route::delete('/{id}', [AddressController::class, 'destroy']);
     });
@@ -280,5 +281,7 @@ Route::middleware(['auth:sanctum', 'active_user'])->group(function () {
         // 🌟 Admin អាចលុប Order បាន ចំណែក Sale ត្រឹមតែអាច Manage
         Route::delete('orders/{id}', [OrderController::class, 'destroy']);
         Route::post('/system/clear-cache', [SystemController::class, 'clearCache']);
+
+        Route::apiResource('permissions', PermissionController::class)->except(['show']);
     });
 });
