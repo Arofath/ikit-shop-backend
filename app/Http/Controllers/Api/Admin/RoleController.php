@@ -40,8 +40,8 @@ class RoleController extends Controller
      */
     public function getPermissions()
     {
-        // ទាញយក Permission ទាំងអស់ ហើយ Group វាទៅតាម Column `group_name`
-        $permissions = Permission::all()->groupBy('group_name');
+        // 🌟 ផ្លាស់ប្តូរពី group_name ទៅ entity វិញ និងតម្រៀបអក្សរឱ្យមានសណ្តាប់ធ្នាប់
+        $permissions = Permission::orderBy('entity')->orderBy('name')->get()->groupBy('entity');
 
         return response()->json([
             'success' => true,
