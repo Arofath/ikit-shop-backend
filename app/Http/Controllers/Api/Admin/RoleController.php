@@ -40,8 +40,11 @@ class RoleController extends Controller
      */
     public function getPermissions()
     {
-        // 🌟 ផ្លាស់ប្តូរពី group_name ទៅ entity វិញ និងតម្រៀបអក្សរឱ្យមានសណ្តាប់ធ្នាប់
-        $permissions = Permission::orderBy('entity')->orderBy('name')->get()->groupBy('entity');
+        // 🌟 ផ្លាស់ប្តូរពី group_name ទៅ entity វិញ និងតម្រៀបតាមឈ្មោះឱ្យមានសណ្តាប់ធ្នាប់
+        $permissions = Permission::orderBy('entity')
+            ->orderBy('display_name')
+            ->get()
+            ->groupBy('entity');
 
         return response()->json([
             'success' => true,
@@ -56,15 +59,16 @@ class RoleController extends Controller
     {
         $request->validate([
             'name'        => 'required|string|max:255|unique:roles,name',
-            'permissions' => 'nullable|array', // ជា Array នៃ Permission IDs ឬ Names
+            'description' => 'nullable|string', 
+            'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name'
         ]);
-
         DB::beginTransaction();
         try {
             // បង្កើត Role ថ្មី (Guard API)
             $role = Role::create([
                 'name'       => $request->name,
+                'description' => $request->description,
                 'guard_name' => 'web' // ឬ 'api' អាស្រ័យលើការកំណត់ដើមរបស់អ្នក
             ]);
 
@@ -119,13 +123,17 @@ class RoleController extends Controller
 
         $request->validate([
             'name'        => 'required|string|max:255|unique:roles,name,' . $role->id,
+            'description' => 'nullable|string', 
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name'
         ]);
 
         DB::beginTransaction();
         try {
-            $role->update(['name' => $request->name]);
+            $role->update([
+                'name'        => $request->name,
+                'description' => $request->description,
+            ]);
 
             if ($request->has('permissions')) {
                 $role->syncPermissions($request->permissions);
